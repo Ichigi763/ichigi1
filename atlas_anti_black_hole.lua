@@ -4,12 +4,7 @@ local SpoofID = 10247595755
 local Players = game:GetService("Players")
 local LP = Players.LocalPlayer
 
-pcall(function()
-    if isfolder("Atlas") then delfolder("Atlas") end
-    if isfolder("atlasbss") then delfolder("atlasbss") end
-    if isfolder("Rayfield") then delfolder("Rayfield") end
-    if isfile("atlas_config.json") then delfile("atlas_config.json") end
-end)
+-- БЛОК УДАЛЕНИЯ ФАЙЛОВ УБРАН
 
 local mt = getrawmetatable(game)
 local old_index = mt.__index
