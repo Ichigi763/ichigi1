@@ -1,70 +1,79 @@
--- [[ AUTO REJOINER v6 (Config Auto-Start) ]] --
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local TeleportService = game:GetService("TeleportService")
+local HttpService = game:GetService("HttpService") -- Для работы с JSON
 local Players = game:GetService("Players")
-local HttpService = game:GetService("HttpService") -- Нужен для чтения конфига
 local LocalPlayer = Players.LocalPlayer
 
 local ServerID_to_Rejoin = game.JobId
-local ConfigFolder = "RejoinerV6"
-local ConfigFile = "Settings"
+local ConfigFile = "RejoinerSettings.json" -- Название нашего файла с настройками
 
--- Настройки по умолчанию
+
 local Settings = {
     Enabled = false,
     TimeValue = 30,
     TimeUnit = "Minutes"
 }
 
--- === ЧТЕНИЕ СОХРАНЕННОГО КОНФИГА ПРИ ЗАПУСКЕ ===
-pcall(function()
-    local configPath = ConfigFolder .. "/" .. ConfigFile .. ".json"
-    if isfile(configPath) then
-        local savedData = HttpService:JSONDecode(readfile(configPath))
-        -- Применяем сохраненные значения к нашим настройкам
-        Settings.Enabled = savedData.RejoinEnabled or false
-        Settings.TimeValue = savedData.RejoinTimeValue or 30
-        -- Rayfield сохраняет Dropdown по индексу, а не по имени.
-        -- Это более сложный момент, но для простоты оставим пока так, 
-        -- Rayfield сам восстановит выбор.
-    end
-end)
+function SaveConfig()
+    local data = HttpService:JSONEncode(Settings)
+    writefile(ConfigFile, data)
+end
 
--- Создание окна
+function LoadConfig()
+    if isfile(ConfigFile) then
+        local data = readfile(ConfigFile)
+        local success, decoded = pcall(function() return HttpService:JSONDecode(data) end)
+        if success and decoded then
+            -- Применяем загруженные настройки
+            Settings.Enabled = decoded.Enabled or false
+            Settings.TimeValue = decoded.TimeValue or 30
+            Settings.TimeUnit = decoded.TimeUnit or "Minutes"
+        end
+    end
+end
+
+LoadConfig()
+
 local Window = Rayfield:CreateWindow({
    Name = "Auto Server Rejoiner",
-   LoadingTitle = "Загрузка...",
-   ConfigurationSaving = { Enabled = true, FolderName = ConfigFolder, FileName = ConfigFile }
+   LoadingTitle = "Загрузка..."
 })
 
 local MainTab = Window:CreateTab("Main", 4483362458)
 MainTab:CreateLabel("Rejoining to Server ID: " .. ServerID_to_Rejoin)
 MainTab:CreateDivider()
 
--- Элементы интерфейса
+-- Теперь они просто меняют настройки и вызывают SaveConfig()
+
 local TimeInput = MainTab:CreateInput({
-   Name = "Time Value", PlaceholderText = "E.g., 45", RemoveTextAfterFocusLost = false,
-   Flag = "RejoinTimeValue", CurrentValue = Settings.TimeValue,
+   Name = "Time Value", PlaceholderText = "E.g., 0.1", RemoveTextAfterFocusLost = false,
+   CurrentValue = Settings.TimeValue, -- Ставим загруженное значение
    Callback = function(text)
       local num = tonumber(text)
-      if num and num > 0 then Settings.TimeValue = num end
+      if num and num > 0 then
+         Settings.TimeValue = num
+         SaveConfig() -- Сохраняем изменение
+      end
    end,
 })
+
 local TimeUnitDropdown = MainTab:CreateDropdown({
     Name = "Time Unit", Options = {"Minutes", "Hours", "Days"}, CurrentOption = {Settings.TimeUnit},
-    MultipleOptions = false, Flag = "RejoinTimeUnit",
-    Callback = function(option) Settings.TimeUnit = option[1] end,
+    MultipleOptions = false,
+    Callback = function(option)
+        Settings.TimeUnit = option[1]
+        SaveConfig() -- Сохраняем изменение
+    end,
 })
+
 local CountdownLabel = MainTab:CreateLabel("Rejoiner is disabled.")
 
--- Функция перезахода
 function RejoinServer()
     Rayfield:Notify({Title = "Rejoining!", Content = "Teleporting back...", Duration = 5})
     pcall(function() TeleportService:TeleportToPlaceInstance(game.PlaceId, ServerID_to_Rejoin, LocalPlayer) end)
 end
 
--- === УМНЫЙ ТАЙМЕР С АВТО-СТАРТОМ ===
 local secondsRemaining = 0
 local isCountingDown = false
 
@@ -83,34 +92,25 @@ task.spawn(function()
         if Settings.Enabled and isCountingDown then
             if secondsRemaining > 0 then
                 secondsRemaining = secondsRemaining - 1
-                local d = math.floor(secondsRemaining / 86400); local h = math.floor((secondsRemaining % 86400) / 3600)
-                local m = math.floor((secondsRemaining % 3600) / 60); local s = secondsRemaining % 60
-                if d > 0 then
-                    CountdownLabel:Set(string.format("Rejoin in: %dд %02d:%02d:%02d", d, h, m, s))
-                else
-                    CountdownLabel:Set(string.format("Rejoin in: %02d:%02d:%02d", h, m, s))
-                end
+                local d=math.floor(secondsRemaining/86400);local h=math.floor((secondsRemaining%86400)/3600);local m=math.floor((secondsRemaining%3600)/60);local s=secondsRemaining%60
+                CountdownLabel:Set(d > 0 and string.format("Rejoin in: %dд %02d:%02d:%02d", d, h, m, s) or string.format("Rejoin in: %02d:%02d:%02d", h, m, s))
             else
-                -- Таймер дошел до нуля. Перезаходим, но НЕ ВЫКЛЮЧАЕМ НАСТРОЙКУ
                 RejoinServer()
-                isCountingDown = false 
-                -- Мы не ставим Settings.Enabled = false, чтобы после перезахода он сам включился
+                isCountingDown = false
             end
         elseif not Settings.Enabled and isCountingDown then
-            isCountingDown = false
-            secondsRemaining = 0
+            isCountingDown = false; secondsRemaining = 0
             CountdownLabel:Set("Rejoiner stopped.")
         end
     end
 end)
 
--- Переключатель
 local Toggle = MainTab:CreateToggle({
    Name = "Enable Auto Rejoin",
-   CurrentValue = Settings.Enabled, -- <<-- СРАЗУ СТАВИМ СОХРАНЕННОЕ ЗНАЧЕНИЕ
-   Flag = "RejoinEnabled",
+   CurrentValue = Settings.Enabled, -- Ставим загруженное значение
    Callback = function(value)
       Settings.Enabled = value
+      SaveConfig() -- Сохраняем изменение
       if not value then
         CountdownLabel:Set("Rejoiner is disabled.")
       else
