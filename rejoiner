@@ -1,120 +1,752 @@
+-- Auto Rejoiner (Delta-friendly + Rayfield UI)
+-- Supports: Delta, Fluxus, KRNL, Synapse-like APIs (best effort)
 
-local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local TeleportService = game:GetService("TeleportService")
-local HttpService = game:GetService("HttpService") -- Для работы с JSON
 local Players = game:GetService("Players")
+local TeleportService = game:GetService("TeleportService")
+local HttpService = game:GetService("HttpService")
+local CoreGui = game:GetService("CoreGui")
+
 local LocalPlayer = Players.LocalPlayer
+local CONFIG_NAME = "rejoiner_config.json"
 
-local ServerID_to_Rejoin = game.JobId
-local ConfigFile = "RejoinerSettings.json" -- Название нашего файла с настройками
+local ENV = getgenv and getgenv() or _G
+if ENV.__AUTO_REJOINER_DELTA_RUNNING then
+    warn("[AutoRejoiner] Script already running")
+    return
+end
+ENV.__AUTO_REJOINER_DELTA_RUNNING = true
 
-
-local Settings = {
-    Enabled = false,
-    TimeValue = 30,
-    TimeUnit = "Minutes"
-}
-
-function SaveConfig()
-    local data = HttpService:JSONEncode(Settings)
-    writefile(ConfigFile, data)
+local function safeCall(fn, ...)
+    local ok, res = pcall(fn, ...)
+    return ok, res
 end
 
-function LoadConfig()
-    if isfile(ConfigFile) then
-        local data = readfile(ConfigFile)
-        local success, decoded = pcall(function() return HttpService:JSONDecode(data) end)
-        if success and decoded then
-            -- Применяем загруженные настройки
-            Settings.Enabled = decoded.Enabled or false
-            Settings.TimeValue = decoded.TimeValue or 30
-            Settings.TimeUnit = decoded.TimeUnit or "Minutes"
+local function canReadFile()
+    return type(readfile) == "function" and type(isfile) == "function"
+end
+
+local function canWriteFile()
+    return type(writefile) == "function"
+end
+
+local function getExecutorName()
+    if type(identifyexecutor) == "function" then
+        local ok, name = safeCall(identifyexecutor)
+        if ok and type(name) == "string" then
+            return name
+        end
+    end
+    return "Unknown"
+end
+
+local function httpGet(url)
+    if type(game.HttpGet) == "function" then
+        local ok, body = safeCall(function()
+            return game:HttpGet(url)
+        end)
+        if ok and type(body) == "string" and body ~= "" then
+            return body
+        end
+    end
+
+    if type(httpget) == "function" then
+        local ok, body = safeCall(httpget, url)
+        if ok and type(body) == "string" and body ~= "" then
+            return body
+        end
+    end
+
+    return nil
+end
+
+local function requestWrapper(payload)
+    if type(syn) == "table" and type(syn.request) == "function" then
+        return syn.request(payload)
+    end
+    if type(http_request) == "function" then
+        return http_request(payload)
+    end
+    if type(request) == "function" then
+        return request(payload)
+    end
+    if type(fluxus) == "table" and type(fluxus.request) == "function" then
+        return fluxus.request(payload)
+    end
+    if type(krnl_request) == "function" then
+        return krnl_request(payload)
+    end
+
+    local ok = safeCall(function()
+        HttpService:PostAsync(payload.Url, payload.Body, Enum.HttpContentType.ApplicationJson, false)
+    end)
+
+    return { Success = ok == true, StatusCode = ok and 200 or 0 }
+end
+
+local function parseNumber(txt)
+    if type(txt) ~= "string" then
+        return nil
+    end
+
+    txt = txt:gsub(",", ".")
+    local n = tonumber(txt)
+    if not n or n <= 0 or n ~= n or n == math.huge or n == -math.huge then
+        return nil
+    end
+
+    return n
+end
+
+local function toSeconds(v, unit)
+    if unit == "Minutes" then
+        return v * 60
+    elseif unit == "Hours" then
+        return v * 3600
+    elseif unit == "Days" then
+        return v * 86400
+    end
+    return v * 60
+end
+
+local function fmtTime(total)
+    total = math.max(0, math.floor(total + 0.5))
+    local days = math.floor(total / 86400)
+    local rem = total % 86400
+    local hours = math.floor(rem / 3600)
+    rem = rem % 3600
+    local minutes = math.floor(rem / 60)
+    local seconds = rem % 60
+
+    return string.format("%02d:%02d:%02d:%02d", days, hours, minutes, seconds)
+end
+
+local function nowISO()
+    local ok, value = safeCall(function()
+        return DateTime.now():ToIsoDateTime()
+    end)
+    return ok and value or ""
+end
+
+local function lowerSafe(v)
+    if type(v) ~= "string" then
+        return ""
+    end
+    return string.lower(v)
+end
+
+local function isValidWebhook(url)
+    if type(url) ~= "string" or url == "" then
+        return false
+    end
+    if not url:match("^https://") then
+        return false
+    end
+    return url:find("discord.com/api/webhooks/", 1, true) ~= nil
+        or url:find("discordapp.com/api/webhooks/", 1, true) ~= nil
+end
+
+local function queueOnTeleport(source)
+    local queueFn = queue_on_teleport
+        or (syn and syn.queue_on_teleport)
+        or (fluxus and fluxus.queue_on_teleport)
+
+    if type(queueFn) == "function" then
+        safeCall(queueFn, source)
+    end
+end
+
+local defaultConfig = {
+    Enabled = false,
+    Paused = false,
+    TimeValue = "15",
+    TimeUnit = "Minutes",
+    WebhookUrl = "",
+    DiscordId = "",
+    PingOnRejoin = false,
+    RejoinCount = 0,
+    LastRejoinTime = "",
+    LastReason = "",
+    AutoQueue = false,
+}
+
+local config = {}
+for k, v in pairs(defaultConfig) do
+    config[k] = v
+end
+
+local function loadConfig()
+    if not canReadFile() then
+        return
+    end
+
+    local okFile, exists = safeCall(isfile, CONFIG_NAME)
+    if not okFile or not exists then
+        return
+    end
+
+    local okRead, raw = safeCall(readfile, CONFIG_NAME)
+    if not okRead or type(raw) ~= "string" then
+        return
+    end
+
+    local okDecode, decoded = safeCall(function()
+        return HttpService:JSONDecode(raw)
+    end)
+
+    if not okDecode or type(decoded) ~= "table" then
+        return
+    end
+
+    for k, _ in pairs(defaultConfig) do
+        if decoded[k] ~= nil then
+            config[k] = decoded[k]
         end
     end
 end
 
-LoadConfig()
+local function saveConfig()
+    if not canWriteFile() then
+        return
+    end
 
-local Window = Rayfield:CreateWindow({
-   Name = "Auto Server Rejoiner",
-   LoadingTitle = "Загрузка..."
-})
+    local payload = {}
+    for k, _ in pairs(defaultConfig) do
+        payload[k] = config[k]
+    end
+
+    local okEncode, body = safeCall(function()
+        return HttpService:JSONEncode(payload)
+    end)
+
+    if okEncode and type(body) == "string" then
+        safeCall(writefile, CONFIG_NAME, body)
+    end
+end
+
+local function buildPing()
+    if not config.PingOnRejoin then
+        return ""
+    end
+
+    local did = tostring(config.DiscordId or "")
+    if did ~= "" and did:match("^%d+$") then
+        return "<@" .. did .. ">"
+    end
+
+    return ""
+end
+
+local function sendWebhook(reason, details, remainingSeconds)
+    local url = tostring(config.WebhookUrl or "")
+    if not isValidWebhook(url) then
+        return false
+    end
+
+    local fields = {
+        { name = "Player", value = tostring(LocalPlayer.Name), inline = true },
+        { name = "Executor", value = tostring(getExecutorName()), inline = true },
+        { name = "PlaceId", value = tostring(game.PlaceId), inline = true },
+        { name = "JobId", value = tostring(game.JobId), inline = false },
+        { name = "Reason", value = tostring(reason or "Timer"), inline = true },
+        { name = "Next", value = fmtTime(remainingSeconds or 0), inline = true },
+    }
+
+    if type(details) == "string" and details ~= "" then
+        table.insert(fields, { name = "Details", value = details, inline = false })
+    end
+
+    local payload = {
+        content = buildPing(),
+        username = "Auto Rejoiner",
+        embeds = {
+            {
+                title = "Rejoin Triggered",
+                description = "Rejoining current server instance.",
+                fields = fields,
+                timestamp = nowISO(),
+            },
+        },
+    }
+
+    local okBody, body = safeCall(function()
+        return HttpService:JSONEncode(payload)
+    end)
+    if not okBody then
+        return false
+    end
+
+    local okReq, res = safeCall(function()
+        return requestWrapper({
+            Url = url,
+            Method = "POST",
+            Headers = { ["Content-Type"] = "application/json" },
+            Body = body,
+        })
+    end)
+
+    if not okReq then
+        return false
+    end
+
+    if type(res) == "table" and res.Success ~= nil then
+        return res.Success == true
+    end
+
+    return true
+end
+
+local function loadRayfield()
+    local sources = {
+        "https://sirius.menu/rayfield",
+        "https://raw.githubusercontent.com/shlexware/Rayfield/main/source",
+    }
+
+    for _, url in ipairs(sources) do
+        local body = httpGet(url)
+        if type(body) == "string" and body ~= "" then
+            local okLoad, fn = safeCall(loadstring, body)
+            if okLoad and type(fn) == "function" then
+                local okLib, lib = safeCall(fn)
+                if okLib and type(lib) == "table" then
+                    return lib
+                end
+            end
+        end
+    end
+
+    return nil
+end
+
+local function antiAfk()
+    local ok, VirtualUser = safeCall(game.GetService, game, "VirtualUser")
+    if not ok or not VirtualUser then
+        return
+    end
+
+    safeCall(function()
+        LocalPlayer.Idled:Connect(function()
+            VirtualUser:CaptureController()
+            VirtualUser:ClickButton2(Vector2.new())
+        end)
+    end)
+end
+
+loadConfig()
+antiAfk()
+
+local Rayfield = loadRayfield()
+if not Rayfield then
+    warn("[AutoRejoiner] Rayfield failed to load. Check internet / executor HTTP support.")
+    ENV.__AUTO_REJOINER_DELTA_RUNNING = nil
+    return
+end
+
+local okWindow, Window = safeCall(function()
+    return Rayfield:CreateWindow({
+        Name = "Bergjoin",
+        LoadingTitle = "Bergjoin",
+        LoadingSubtitle = "made by Ichigi",
+        ConfigurationSaving = { Enabled = false },
+        KeySystem = false,
+        DisableRayfieldPrompts = true,
+        DisableBuildWarnings = true,
+    })
+end)
+
+if not okWindow or not Window then
+    warn("[AutoRejoiner] Failed to create Rayfield window")
+    ENV.__AUTO_REJOINER_DELTA_RUNNING = nil
+    return
+end
 
 local MainTab = Window:CreateTab("Main", 4483362458)
-MainTab:CreateLabel("Rejoining to Server ID: " .. ServerID_to_Rejoin)
-MainTab:CreateDivider()
+local WebhookTab = Window:CreateTab("Webhook", 4483362458)
+local InfoTab = Window:CreateTab("Info", 4483362458)
 
--- Теперь они просто меняют настройки и вызывают SaveConfig()
+local timerLabel = "Таймер: " .. fmtTime(0)
+local statusLabel = "Статус: выключено"
 
-local TimeInput = MainTab:CreateInput({
-   Name = "Time Value", PlaceholderText = "E.g., 0.1", RemoveTextAfterFocusLost = false,
-   CurrentValue = Settings.TimeValue, -- Ставим загруженное значение
-   Callback = function(text)
-      local num = tonumber(text)
-      if num and num > 0 then
-         Settings.TimeValue = num
-         SaveConfig() -- Сохраняем изменение
-      end
-   end,
-})
+local timerParagraph = MainTab:CreateParagraph({ Title = "Timer", Content = timerLabel })
+local statusParagraph = MainTab:CreateParagraph({ Title = "Status", Content = statusLabel })
 
-local TimeUnitDropdown = MainTab:CreateDropdown({
-    Name = "Time Unit", Options = {"Minutes", "Hours", "Days"}, CurrentOption = {Settings.TimeUnit},
-    MultipleOptions = false,
-    Callback = function(option)
-        Settings.TimeUnit = option[1]
-        SaveConfig() -- Сохраняем изменение
+local remainingSeconds = 0
+local timerToken = 0
+local rejoinLock = false
+local refreshStatsParagraph = function() end
+
+local function notify(title, content)
+    safeCall(function()
+        Rayfield:Notify({
+            Title = title,
+            Content = content,
+            Duration = 4,
+            Image = 4483362458,
+        })
+    end)
+end
+
+local function updateStatusText()
+    if not config.Enabled then
+        statusLabel = "Статус: выключено"
+    elseif config.Paused then
+        statusLabel = "Статус: пауза"
+    else
+        statusLabel = "Статус: работает"
+    end
+    statusParagraph:Set({ Title = "Status", Content = statusLabel })
+end
+
+local function updateTimerText()
+    timerLabel = "Таймер: " .. fmtTime(remainingSeconds)
+    timerParagraph:Set({ Title = "Timer", Content = timerLabel })
+end
+
+local function resetRemainingFromConfig()
+    local n = parseNumber(tostring(config.TimeValue or ""))
+    if not n then
+        remainingSeconds = 0
+    else
+        remainingSeconds = toSeconds(n, config.TimeUnit)
+    end
+    updateTimerText()
+end
+
+local function triggerRejoin(reason, details)
+    if rejoinLock or not config.Enabled then
+        return
+    end
+
+    rejoinLock = true
+    timerToken = timerToken + 1
+
+    task.spawn(function()
+        task.wait(0.2)
+        sendWebhook(reason, details, remainingSeconds)
+
+        config.RejoinCount = (tonumber(config.RejoinCount) or 0) + 1
+        config.LastRejoinTime = nowISO()
+        config.LastReason = tostring(reason or "Timer")
+        saveConfig()
+        refreshStatsParagraph()
+
+        if config.AutoQueue then
+            queueOnTeleport("loadstring(game:HttpGet('YOUR_RAW_LINK/rejoiner_rayfield.lua'))()")
+        end
+
+        task.wait(0.15)
+        safeCall(function()
+            TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
+        end)
+    end)
+end
+
+local function triggerForcedRejoin(reason, details)
+    if rejoinLock then
+        return
+    end
+
+    local wasEnabled = config.Enabled == true
+    if not wasEnabled then
+        config.Enabled = true
+        config.Paused = false
+    end
+
+    triggerRejoin(reason, details)
+
+    if not wasEnabled then
+        config.Enabled = false
+        saveConfig()
+        updateStatusText()
+    end
+end
+
+local function startLoop()
+    timerToken = timerToken + 1
+    local myToken = timerToken
+    rejoinLock = false
+
+    if remainingSeconds <= 0 then
+        resetRemainingFromConfig()
+    end
+
+    if remainingSeconds <= 0 then
+        notify("Auto Rejoiner", "Некорректное время. Введи число > 0")
+        return
+    end
+
+    local last = os.clock()
+    task.spawn(function()
+        while myToken == timerToken do
+            if not config.Enabled then
+                return
+            end
+
+            if config.Paused then
+                task.wait(0.1)
+                last = os.clock()
+            else
+                local now = os.clock()
+                local dt = now - last
+                last = now
+
+                remainingSeconds = remainingSeconds - dt
+                if remainingSeconds <= 0 then
+                    remainingSeconds = 0
+                    updateTimerText()
+                    break
+                end
+
+                updateTimerText()
+                task.wait(0.1)
+            end
+        end
+
+        if myToken ~= timerToken or not config.Enabled or config.Paused then
+            return
+        end
+
+        triggerRejoin("Timer", "")
+    end)
+end
+
+MainTab:CreateInput({
+    Name = "Time Value",
+    PlaceholderText = "Например: 15",
+    RemoveTextAfterFocusLost = false,
+    CurrentValue = tostring(config.TimeValue),
+    Flag = "TimeValue",
+    Callback = function(value)
+        config.TimeValue = tostring(value)
+        saveConfig()
+        if config.Enabled and not config.Paused then
+            resetRemainingFromConfig()
+        end
     end,
 })
 
-local CountdownLabel = MainTab:CreateLabel("Rejoiner is disabled.")
+MainTab:CreateDropdown({
+    Name = "Time Unit",
+    Options = { "Minutes", "Hours", "Days" },
+    CurrentOption = tostring(config.TimeUnit),
+    MultipleOptions = false,
+    Flag = "TimeUnit",
+    Callback = function(option)
+        if type(option) == "table" then
+            option = option[1]
+        end
+        config.TimeUnit = tostring(option or "Minutes")
+        saveConfig()
+        if config.Enabled and not config.Paused then
+            resetRemainingFromConfig()
+        end
+    end,
+})
 
-function RejoinServer()
-    Rayfield:Notify({Title = "Rejoining!", Content = "Teleporting back...", Duration = 5})
-    pcall(function() TeleportService:TeleportToPlaceInstance(game.PlaceId, ServerID_to_Rejoin, LocalPlayer) end)
+MainTab:CreateToggle({
+    Name = "Enable Auto Rejoin",
+    CurrentValue = config.Enabled == true,
+    Flag = "Enabled",
+    Callback = function(value)
+        config.Enabled = value == true
+        if not config.Enabled then
+            config.Paused = false
+            timerToken = timerToken + 1
+        else
+            config.Paused = false
+            resetRemainingFromConfig()
+            startLoop()
+        end
+        saveConfig()
+        updateStatusText()
+    end,
+})
+
+MainTab:CreateToggle({
+    Name = "Pause",
+    CurrentValue = config.Paused == true,
+    Flag = "Paused",
+    Callback = function(value)
+        if not config.Enabled then
+            config.Paused = false
+        else
+            config.Paused = value == true
+            if not config.Paused then
+                startLoop()
+            end
+        end
+        saveConfig()
+        updateStatusText()
+    end,
+})
+
+MainTab:CreateButton({
+    Name = "Rejoin Now",
+    Callback = function()
+        if config.Enabled then
+            triggerRejoin("Manual", "Manual rejoin from UI")
+        else
+            notify("Auto Rejoiner", "Сначала включи Enable Auto Rejoin")
+        end
+    end,
+})
+
+WebhookTab:CreateInput({
+    Name = "Discord Webhook URL",
+    PlaceholderText = "https://discord.com/api/webhooks/...",
+    RemoveTextAfterFocusLost = false,
+    CurrentValue = tostring(config.WebhookUrl or ""),
+    Flag = "WebhookUrl",
+    Callback = function(value)
+        config.WebhookUrl = tostring(value or "")
+        saveConfig()
+    end,
+})
+
+WebhookTab:CreateInput({
+    Name = "Discord ID",
+    PlaceholderText = "User ID (optional)",
+    RemoveTextAfterFocusLost = false,
+    CurrentValue = tostring(config.DiscordId or ""),
+    Flag = "DiscordId",
+    Callback = function(value)
+        config.DiscordId = tostring(value or "")
+        saveConfig()
+    end,
+})
+
+WebhookTab:CreateToggle({
+    Name = "Ping on Rejoin",
+    CurrentValue = config.PingOnRejoin == true,
+    Flag = "PingOnRejoin",
+    Callback = function(value)
+        config.PingOnRejoin = value == true
+        saveConfig()
+    end,
+})
+
+WebhookTab:CreateButton({
+    Name = "Test Webhook",
+    Callback = function()
+        local ok = sendWebhook("Test", "This is a test webhook message", remainingSeconds)
+        notify("Webhook", ok and "Webhook отправлен" or "Webhook не отправлен (проверь URL/HTTP)")
+    end,
+})
+
+local function getStatsText()
+    return string.format(
+        "Rejoins: %s\nLast reason: %s\nLast time: %s",
+        tostring(config.RejoinCount or 0),
+        tostring(config.LastReason or "-"),
+        tostring(config.LastRejoinTime or "-")
+    )
 end
 
-local secondsRemaining = 0
-local isCountingDown = false
+local statsParagraph = InfoTab:CreateParagraph({
+    Title = "Statistics",
+    Content = getStatsText(),
+})
 
-task.spawn(function()
-    while task.wait(1) do
-        if Settings.Enabled and not isCountingDown then
-            isCountingDown = true
-            local totalSeconds = 0
-            if Settings.TimeUnit == "Minutes" then totalSeconds = Settings.TimeValue * 60
-            elseif Settings.TimeUnit == "Hours" then totalSeconds = Settings.TimeValue * 3600
-            elseif Settings.TimeUnit == "Days" then totalSeconds = Settings.TimeValue * 86400
-            end
-            secondsRemaining = totalSeconds
+refreshStatsParagraph = function()
+    statsParagraph:Set({
+        Title = "Statistics",
+        Content = getStatsText(),
+    })
+end
+
+InfoTab:CreateParagraph({
+    Title = "Credits",
+    Content = "Made by Ichigi",
+})
+
+InfoTab:CreateButton({
+    Name = "Reset Rejoin Count",
+    Callback = function()
+        config.RejoinCount = 0
+        config.LastReason = "-"
+        config.LastRejoinTime = "-"
+        saveConfig()
+        refreshStatsParagraph()
+        notify("Statistics", "Счетчик реджоинов сброшен")
+    end,
+})
+
+InfoTab:CreateButton({
+    Name = "Copy Loadstring",
+    Callback = function()
+        if setclipboard then
+            setclipboard("loadstring(game:HttpGet('YOUR_RAW_LINK/rejoiner_rayfield.lua'))()")
+            notify("Copied", "Шаблон loadstring скопирован")
+        else
+            notify("Clipboard", "setclipboard не поддерживается")
         end
-        
-        if Settings.Enabled and isCountingDown then
-            if secondsRemaining > 0 then
-                secondsRemaining = secondsRemaining - 1
-                local d=math.floor(secondsRemaining/86400);local h=math.floor((secondsRemaining%86400)/3600);local m=math.floor((secondsRemaining%3600)/60);local s=secondsRemaining%60
-                CountdownLabel:Set(d > 0 and string.format("Rejoin in: %dд %02d:%02d:%02d", d, h, m, s) or string.format("Rejoin in: %02d:%02d:%02d", h, m, s))
-            else
-                RejoinServer()
-                isCountingDown = false
-            end
-        elseif not Settings.Enabled and isCountingDown then
-            isCountingDown = false; secondsRemaining = 0
-            CountdownLabel:Set("Rejoiner stopped.")
-        end
-    end
+    end,
+})
+
+updateStatusText()
+resetRemainingFromConfig()
+
+if config.Enabled and not config.Paused then
+    task.defer(startLoop)
+end
+
+safeCall(function()
+    LocalPlayer.Kicked:Connect(function(msg)
+        triggerRejoin("Kicked", tostring(msg or ""))
+    end)
 end)
 
-local Toggle = MainTab:CreateToggle({
-   Name = "Enable Auto Rejoin",
-   CurrentValue = Settings.Enabled, -- Ставим загруженное значение
-   Callback = function(value)
-      Settings.Enabled = value
-      SaveConfig() -- Сохраняем изменение
-      if not value then
-        CountdownLabel:Set("Rejoiner is disabled.")
-      else
-        Rayfield:Notify({Title = "Timer Started", Content = "The countdown has begun.", Duration = 3})
-      end
-   end,
-})
+safeCall(function()
+    TeleportService.TeleportInitFailed:Connect(function(player, result, msg)
+        if player == LocalPlayer then
+            triggerForcedRejoin("TeleportInitFailed", tostring(msg or result or ""))
+        end
+    end)
+end)
+
+local function inspectErrorPromptAndRejoin()
+    local promptGui = CoreGui:FindFirstChild("RobloxPromptGui")
+    if not promptGui then
+        return
+    end
+
+    local overlay = promptGui:FindFirstChild("promptOverlay")
+    if not overlay then
+        return
+    end
+
+    local errPrompt = overlay:FindFirstChild("ErrorPrompt")
+    if not errPrompt or not errPrompt.Visible then
+        return
+    end
+
+    local aggregated = ""
+    for _, d in ipairs(errPrompt:GetDescendants()) do
+        if d:IsA("TextLabel") or d:IsA("TextBox") then
+            aggregated = aggregated .. " " .. tostring(d.Text or "")
+        end
+    end
+
+    local lowered = lowerSafe(aggregated)
+    if lowered:find("267", 1, true) then
+        triggerForcedRejoin("Error267", aggregated)
+        return
+    end
+
+    if lowered:find("disconnect", 1, true)
+        or lowered:find("disconnected", 1, true)
+        or lowered:find("connection", 1, true)
+        or lowered:find("ошиб", 1, true)
+        or lowered:find("потер", 1, true)
+    then
+        triggerForcedRejoin("Disconnected", aggregated)
+        return
+    end
+end
+
+safeCall(function()
+    task.spawn(function()
+        while task.wait(1) do
+            inspectErrorPromptAndRejoin()
+        end
+    end)
+end)
