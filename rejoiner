@@ -363,8 +363,8 @@ local MainTab = Window:CreateTab("Main", 4483362458)
 local WebhookTab = Window:CreateTab("Webhook", 4483362458)
 local InfoTab = Window:CreateTab("Info", 4483362458)
 
-local timerLabel = "Таймер: " .. fmtTime(0)
-local statusLabel = "Статус: выключено"
+local timerLabel = "Timer: " .. fmtTime(0)
+local statusLabel = "Status: Disabled"
 
 local timerParagraph = MainTab:CreateParagraph({ Title = "Timer", Content = timerLabel })
 local statusParagraph = MainTab:CreateParagraph({ Title = "Status", Content = statusLabel })
@@ -387,17 +387,17 @@ end
 
 local function updateStatusText()
     if not config.Enabled then
-        statusLabel = "Статус: выключено"
+        statusLabel = "Status: Disabled"
     elseif config.Paused then
-        statusLabel = "Статус: пауза"
+        statusLabel = "Status: Paused"
     else
-        statusLabel = "Статус: работает"
+        statusLabel = "Status: Running"
     end
     statusParagraph:Set({ Title = "Status", Content = statusLabel })
 end
 
 local function updateTimerText()
-    timerLabel = "Таймер: " .. fmtTime(remainingSeconds)
+    timerLabel = "Timer: " .. fmtTime(remainingSeconds)
     timerParagraph:Set({ Title = "Timer", Content = timerLabel })
 end
 
@@ -433,7 +433,7 @@ local function triggerRejoin(reason, details)
             queueOnTeleport("loadstring(game:HttpGet('YOUR_RAW_LINK/rejoiner_rayfield.lua'))()")
         end
 
-        task.wait(0.15)
+        task.wait(2)
         safeCall(function()
             TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
         end)
@@ -470,7 +470,7 @@ local function startLoop()
     end
 
     if remainingSeconds <= 0 then
-        notify("Auto Rejoiner", "Некорректное время. Введи число > 0")
+        notify("Auto Rejoiner", "Invalid time value. Enter a number > 0")
         return
     end
 
@@ -511,7 +511,7 @@ end
 
 MainTab:CreateInput({
     Name = "Time Value",
-    PlaceholderText = "Например: 15",
+    PlaceholderText = "Example: 15",
     RemoveTextAfterFocusLost = false,
     CurrentValue = tostring(config.TimeValue),
     Flag = "TimeValue",
@@ -585,7 +585,7 @@ MainTab:CreateButton({
         if config.Enabled then
             triggerRejoin("Manual", "Manual rejoin from UI")
         else
-            notify("Auto Rejoiner", "Сначала включи Enable Auto Rejoin")
+            notify("Auto Rejoiner", "Enable Auto Rejoin first")
         end
     end,
 })
@@ -628,7 +628,7 @@ WebhookTab:CreateButton({
     Name = "Test Webhook",
     Callback = function()
         local ok = sendWebhook("Test", "This is a test webhook message", remainingSeconds)
-        notify("Webhook", ok and "Webhook отправлен" or "Webhook не отправлен (проверь URL/HTTP)")
+        notify("Webhook", ok and "Webhook sent" or "Webhook failed (check URL/HTTP)")
     end,
 })
 
@@ -666,7 +666,7 @@ InfoTab:CreateButton({
         config.LastRejoinTime = "-"
         saveConfig()
         refreshStatsParagraph()
-        notify("Statistics", "Счетчик реджоинов сброшен")
+        notify("Statistics", "Rejoin counter reset")
     end,
 })
 
@@ -675,9 +675,9 @@ InfoTab:CreateButton({
     Callback = function()
         if setclipboard then
             setclipboard("loadstring(game:HttpGet('YOUR_RAW_LINK/rejoiner_rayfield.lua'))()")
-            notify("Copied", "Шаблон loadstring скопирован")
+            notify("Copied", "Loadstring template copied")
         else
-            notify("Clipboard", "setclipboard не поддерживается")
+            notify("Clipboard", "setclipboard is not supported")
         end
     end,
 })
@@ -699,6 +699,14 @@ safeCall(function()
     TeleportService.TeleportInitFailed:Connect(function(player, result, msg)
         if player == LocalPlayer then
             triggerForcedRejoin("TeleportInitFailed", tostring(msg or result or ""))
+        end
+    end)
+end)
+
+safeCall(function()
+    TeleportService.TeleportFailed:Connect(function(player, result, msg)
+        if player == LocalPlayer then
+            triggerForcedRejoin("TeleportFailed", tostring(msg or result or ""))
         end
     end)
 end)
@@ -735,8 +743,8 @@ local function inspectErrorPromptAndRejoin()
     if lowered:find("disconnect", 1, true)
         or lowered:find("disconnected", 1, true)
         or lowered:find("connection", 1, true)
-        or lowered:find("ошиб", 1, true)
-        or lowered:find("потер", 1, true)
+        or lowered:find("error", 1, true)
+        or lowered:find("lost", 1, true)
     then
         triggerForcedRejoin("Disconnected", aggregated)
         return
