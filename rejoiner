@@ -1,5 +1,3 @@
--- Auto Rejoiner (Delta-friendly + Rayfield UI) + Uptime Stats
--- Supports: Delta, Fluxus, KRNL, Synapse-like APIs (best effort)
 
 local Players = game:GetService("Players")
 local TeleportService = game:GetService("TeleportService")
