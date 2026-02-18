@@ -1794,15 +1794,19 @@ local function getNearestCombatTarget(maxDistance)
         if obj:IsA("Model") and shouldFightByName(obj.Name) and isModelAlive(obj) then
             local modelLevel = extractLevelFromModel(obj)
             local normalizedName = normalizeText(obj.Name)
+            local shouldSkip = false
             if Settings.AutoKillViciousBee and string.find(normalizedName, "vicious", 1, true) and modelLevel then
                 if modelLevel < Settings.ViciousMinLevel or modelLevel > Settings.ViciousMaxLevel then
-                    continue
+                    shouldSkip = true
                 end
             end
-            if Settings.AutoKillWindyBee and string.find(normalizedName, "windy", 1, true) and modelLevel then
+            if not shouldSkip and Settings.AutoKillWindyBee and string.find(normalizedName, "windy", 1, true) and modelLevel then
                 if modelLevel < Settings.WindyMinLevel or modelLevel > Settings.WindyMaxLevel then
-                    continue
+                    shouldSkip = true
                 end
+            end
+            if shouldSkip then
+                goto skip_combat_target
             end
 
             local part = getPart(obj)
@@ -1814,6 +1818,7 @@ local function getNearestCombatTarget(maxDistance)
                     nearestPos = part.Position
                 end
             end
+            ::skip_combat_target::
         end
     end
 
@@ -4108,61 +4113,63 @@ end)
 
 end
 
-do
-local TokenGuideTab = Window:NewTab("Token Guide")
-local TokenGuideKnown = TokenGuideTab:NewSection("Known Tokens (Support)")
-local TokenGuideLive = TokenGuideTab:NewSection("Detected Tokens (This Server)")
+local okTokenGuideUi, tokenGuideUiErr = pcall(function()
+    local TokenGuideTab = Window:NewTab("Token Guide")
+    local TokenGuideKnown = TokenGuideTab:NewSection("Known Tokens (Support)")
+    local TokenGuideLive = TokenGuideTab:NewSection("Detected Tokens (This Server)")
 
-for _, entry in ipairs(TOKEN_GUIDE_LIST) do
-    local supported = isTokenSupportedByMacroName(entry.name)
-    local stateText = supported and "can collect" or "not supported"
-    TokenGuideKnown:NewLabel(entry.icon .. " " .. entry.name .. " | " .. stateText)
-end
-
-local tokenGuideStatus = TokenGuideLive:NewLabel("Detected: not scanned")
-local tokenGuideRows = {}
-for _ = 1, 18 do
-    table.insert(tokenGuideRows, TokenGuideLive:NewLabel("-"))
-end
-
-local function refreshTokenGuideRows()
-    local names = collectTokenNames()
-    if tokenGuideStatus and tokenGuideStatus.UpdateLabel then
-        tokenGuideStatus:UpdateLabel("Detected: " .. tostring(#names) .. " names")
+    for _, entry in ipairs(TOKEN_GUIDE_LIST) do
+        local supported = isTokenSupportedByMacroName(entry.name)
+        local stateText = supported and "can collect" or "not supported"
+        TokenGuideKnown:NewLabel(entry.icon .. " " .. entry.name .. " | " .. stateText)
     end
 
-    for i, row in ipairs(tokenGuideRows) do
-        local line = " "
-        local tokenName = names[i]
-        if tokenName then
-            local supported = isTokenSupportedByMacroName(tokenName)
-            local collectNow = isTokenAllowed(tokenName)
-            local mode = supported and (collectNow and "collect now" or "filtered now") or "not supported"
-            line = (supported and "[+]" or "[-]") .. " " .. tokenName .. " | " .. mode
+    local tokenGuideStatus = TokenGuideLive:NewLabel("Detected: not scanned")
+    local tokenGuideRows = {}
+    for _ = 1, 18 do
+        table.insert(tokenGuideRows, TokenGuideLive:NewLabel("-"))
+    end
+
+    local function refreshTokenGuideRows()
+        local names = collectTokenNames()
+        if tokenGuideStatus and tokenGuideStatus.UpdateLabel then
+            tokenGuideStatus:UpdateLabel("Detected: " .. tostring(#names) .. " names")
         end
-        if row and row.UpdateLabel then
-            row:UpdateLabel(line)
+
+        for i, row in ipairs(tokenGuideRows) do
+            local line = " "
+            local tokenName = names[i]
+            if tokenName then
+                local supported = isTokenSupportedByMacroName(tokenName)
+                local collectNow = isTokenAllowed(tokenName)
+                local mode = supported and (collectNow and "collect now" or "filtered now") or "not supported"
+                line = (supported and "[+]" or "[-]") .. " " .. tokenName .. " | " .. mode
+            end
+            if row and row.UpdateLabel then
+                row:UpdateLabel(line)
+            end
         end
     end
-end
 
-TokenGuideLive:NewButton("Refresh Detected Tokens", "Scan token names in current server", function()
-    refreshTokenGuideRows()
+    TokenGuideLive:NewButton("Refresh Detected Tokens", "Scan token names in current server", function()
+        refreshTokenGuideRows()
+    end)
+
+    TokenGuideLive:NewButton("Copy Detected Names", "Copy full token list to clipboard", function()
+        scanTokenNames()
+        refreshTokenGuideRows()
+    end)
+
+    TokenGuideLive:NewButton("Collect All: ON", "Quick enable full token collection", function()
+        Settings.CollectAllTokens = true
+    end)
+
+    TokenGuideLive:NewButton("Collect All: OFF", "Use internal filters only", function()
+        Settings.CollectAllTokens = false
+    end)
 end)
-
-TokenGuideLive:NewButton("Copy Detected Names", "Copy full token list to clipboard", function()
-    scanTokenNames()
-    refreshTokenGuideRows()
-end)
-
-TokenGuideLive:NewButton("Collect All: ON", "Quick enable full token collection", function()
-    Settings.CollectAllTokens = true
-end)
-
-TokenGuideLive:NewButton("Collect All: OFF", "Use internal filters only", function()
-    Settings.CollectAllTokens = false
-end)
-
+if not okTokenGuideUi then
+    warn("[ICHIGER] Token Guide UI failed: " .. tostring(tokenGuideUiErr))
 end
 
 do
@@ -5031,170 +5038,172 @@ end)
 
 end
 
-do
-local DebugTab = Window:NewTab("Debug + AntiLag")
-local DebugMain = DebugTab:NewSection("Debug")
-local DebugDetected = DebugTab:NewSection("Detected Features")
-local DebugPerfCore = DebugTab:NewSection("Anti Lag Core")
-local DebugPerfVisual = DebugTab:NewSection("Visual Filters")
-local DebugPerfWorld = DebugTab:NewSection("World / Render")
-local DebugTools = DebugTab:NewSection("Tools")
+local okDebugUi, debugUiErr = pcall(function()
+    local DebugTab = Window:NewTab("Debug + AntiLag")
+    local DebugMain = DebugTab:NewSection("Debug")
+    local DebugDetected = DebugTab:NewSection("Detected Features")
+    local DebugPerfCore = DebugTab:NewSection("Anti Lag Core")
+    local DebugPerfVisual = DebugTab:NewSection("Visual Filters")
+    local DebugPerfWorld = DebugTab:NewSection("World / Render")
+    local DebugTools = DebugTab:NewSection("Tools")
 
-local debugStatusLabel = DebugMain:NewLabel("Debug: idle")
-setDebugStatus = function(text)
-    if debugStatusLabel and debugStatusLabel.UpdateLabel then
-        debugStatusLabel:UpdateLabel(text)
+    local debugStatusLabel = DebugMain:NewLabel("Debug: idle")
+    setDebugStatus = function(text)
+        if debugStatusLabel and debugStatusLabel.UpdateLabel then
+            debugStatusLabel:UpdateLabel(text)
+        end
     end
-end
 
-DebugMain:NewToggle("Anonymous Mode", "Hide display identity in logs", function(state)
-    Settings.AnonymousMode = state
-end)
-DebugMain:NewToggle("Farm Multiple Fields", "Allow multi-field selection logic", function(state)
-    Settings.FarmMultipleFields = state
-end)
-DebugMain:NewToggle("Mobile Toggle Button", "Enable mobile helper toggle", function(state)
-    Settings.MobileToggleButton = state
-end)
-DebugMain:NewToggle("Show Console", "Enable verbose console logs", function(state)
-    Settings.ShowAtlasConsole = state
-end)
-DebugMain:NewToggle("Auto Rejoin", "Rejoin when disconnect prompt appears", function(state)
-    Settings.AutoRejoin = state
-end)
-DebugMain:NewSlider("Auto Rejoin Delay", "Seconds between rejoin attempts", 30, 2, function(value)
-    Settings.AutoRejoinDelay = value
-end)
-
-DebugDetected:NewLabel("Use this at your own risk")
-DebugDetected:NewToggle("Run without autofarm", "Allow background routines without autofarm", function(state)
-    Settings.RunWithoutAutofarm = state
-end)
-DebugDetected:NewToggle("Fast Shower Tween", "Enable faster shower movement", function(state)
-    Settings.FastShowerTween = state
-end)
-DebugDetected:NewToggle("Fast Coconut Tween", "Enable faster coconut movement", function(state)
-    Settings.FastCoconutTween = state
-end)
-DebugDetected:NewToggle("Fast Tween To Rares", "Enable faster rare movement", function(state)
-    Settings.FastTweenToRares = state
-end)
-DebugDetected:NewDropdown("Rares List", "Select rare priority profile", RARES_LIST, function(value)
-    Settings.RaresList = value
-end)
-
-DebugPerfCore:NewLabel("Event mode: one full pass + new objects")
-
-DebugPerfCore:NewToggle("Anti Lag", "Enable/disable anti lag", function(state)
-    Settings.AntiLagEnabled = state
-    if state then
-        task.spawn(function()
-            runAntiLagLoop(setDebugStatus)
-        end)
-    else
-        restoreAntiLag()
-        setDebugStatus("AntiLag restored")
-    end
-end)
-DebugPerfCore:NewToggle("Hide Particles", "Turn off particles/trails/beams", function(state)
-    Settings.AntiLagParticles = state
-    requestAntiLagReapply()
-end)
-DebugPerfCore:NewToggle("Destroy Textures", "Hide decals and textures", function(state)
-    Settings.AntiLagTextures = state
-    requestAntiLagReapply()
-end)
-DebugPerfCore:NewToggle("Disable Shadows", "Disable part cast shadows", function(state)
-    Settings.AntiLagShadows = state
-    requestAntiLagReapply()
-end)
-DebugPerfCore:NewToggle("Low Lighting", "Lower lighting effects", function(state)
-    Settings.AntiLagLighting = state
-    requestAntiLagReapply()
-end)
-
-DebugPerfVisual:NewToggle("Hide Tokens", "Hide token parts", function(state)
-    Settings.HideTokens = state
-    requestAntiLagReapply()
-end)
-DebugPerfVisual:NewToggle("Hide Precise Targets", "Hide precise-related visuals", function(state)
-    Settings.HidePreciseTargets = state
-    requestAntiLagReapply()
-end)
-DebugPerfVisual:NewToggle("Hide Duped Tokens", "Hide duplicated token visuals", function(state)
-    Settings.HideDupedTokens = state
-    requestAntiLagReapply()
-end)
-DebugPerfVisual:NewToggle("Hide Marks", "Hide mark/target visuals", function(state)
-    Settings.HideMarks = state
-    requestAntiLagReapply()
-end)
-DebugPerfVisual:NewToggle("Hide Bees", "Hide bee models", function(state)
-    Settings.HideBees = state
-    requestAntiLagReapply()
-end)
-DebugPerfVisual:NewToggle("Hide Flowers", "Hide flower visuals", function(state)
-    Settings.HideFlowers = state
-    requestAntiLagReapply()
-end)
-DebugPerfVisual:NewToggle("Destroy Balloons", "Hide balloon visuals/collision", function(state)
-    Settings.DestroyBalloons = state
-    requestAntiLagReapply()
-end)
-DebugPerfVisual:NewToggle("Destroy Decorations", "Hide decoration meshes/parts", function(state)
-    Settings.DestroyDecorations = state
-    requestAntiLagReapply()
-end)
-
-DebugPerfWorld:NewToggle("Disable 3D Rendering", "Disable world rendering for FPS", function(state)
-    Settings.Disable3DRendering = state
-    requestAntiLagReapply()
-end)
-DebugPerfWorld:NewToggle("Hide Other Players", "Hide other player characters", function(state)
-    Settings.HideOtherPlayers = state
-    requestAntiLagReapply()
-end)
-DebugPerfWorld:NewToggle("Hide BSS UI", "Disable most game UIs", function(state)
-    Settings.HideBssUI = state
-    requestAntiLagReapply()
-end)
-
-local function rejoinNow(reason)
-    if Settings.EnableWebhook and Settings.WebhookSendDisconnect then
-        pcall(function()
-            sendWebhookSnapshot(reason or "Manual rejoin", false)
-        end)
-    end
-    pcall(function()
-        TeleportService:Teleport(game.PlaceId, LocalPlayer)
+    DebugMain:NewToggle("Anonymous Mode", "Hide display identity in logs", function(state)
+        Settings.AnonymousMode = state
     end)
-end
+    DebugMain:NewToggle("Farm Multiple Fields", "Allow multi-field selection logic", function(state)
+        Settings.FarmMultipleFields = state
+    end)
+    DebugMain:NewToggle("Mobile Toggle Button", "Enable mobile helper toggle", function(state)
+        Settings.MobileToggleButton = state
+    end)
+    DebugMain:NewToggle("Show Console", "Enable verbose console logs", function(state)
+        Settings.ShowAtlasConsole = state
+    end)
+    DebugMain:NewToggle("Auto Rejoin", "Rejoin when disconnect prompt appears", function(state)
+        Settings.AutoRejoin = state
+    end)
+    DebugMain:NewSlider("Auto Rejoin Delay", "Seconds between rejoin attempts", 30, 2, function(value)
+        Settings.AutoRejoinDelay = value
+    end)
 
-DebugTools:NewButton("Apply Anti Lag Now", "Run anti-lag pass instantly", function()
-    applyAntiLagPass()
-    antiLagOneTimeApplied = true
-    antiLagDirty = false
-    setDebugStatus("AntiLag pass applied")
-end)
-DebugTools:NewButton("Restore Visuals", "Restore visual changes", function()
-    Settings.AntiLagEnabled = false
-    restoreAntiLag()
-    setDebugStatus("Visuals restored")
-end)
-DebugTools:NewButton("Rejoin Now", "Teleport back to this server type", function()
-    rejoinNow("Manual rejoin")
-end)
+    DebugDetected:NewLabel("Use this at your own risk")
+    DebugDetected:NewToggle("Run without autofarm", "Allow background routines without autofarm", function(state)
+        Settings.RunWithoutAutofarm = state
+    end)
+    DebugDetected:NewToggle("Fast Shower Tween", "Enable faster shower movement", function(state)
+        Settings.FastShowerTween = state
+    end)
+    DebugDetected:NewToggle("Fast Coconut Tween", "Enable faster coconut movement", function(state)
+        Settings.FastCoconutTween = state
+    end)
+    DebugDetected:NewToggle("Fast Tween To Rares", "Enable faster rare movement", function(state)
+        Settings.FastTweenToRares = state
+    end)
+    DebugDetected:NewDropdown("Rares List", "Select rare priority profile", RARES_LIST, function(value)
+        Settings.RaresList = value
+    end)
 
-local tokenScanLabel = DebugTools:NewLabel("Token scan: not run")
-DebugTools:NewButton("Scan Token Names", "List token names to console", function()
-    local names = scanTokenNames()
-    local text = "Token scan: " .. tostring(#names) .. " names"
-    if tokenScanLabel and tokenScanLabel.UpdateLabel then
-        tokenScanLabel:UpdateLabel(text)
+    DebugPerfCore:NewLabel("Event mode: one full pass + new objects")
+
+    DebugPerfCore:NewToggle("Anti Lag", "Enable/disable anti lag", function(state)
+        Settings.AntiLagEnabled = state
+        if state then
+            task.spawn(function()
+                runAntiLagLoop(setDebugStatus)
+            end)
+        else
+            restoreAntiLag()
+            setDebugStatus("AntiLag restored")
+        end
+    end)
+    DebugPerfCore:NewToggle("Hide Particles", "Turn off particles/trails/beams", function(state)
+        Settings.AntiLagParticles = state
+        requestAntiLagReapply()
+    end)
+    DebugPerfCore:NewToggle("Destroy Textures", "Hide decals and textures", function(state)
+        Settings.AntiLagTextures = state
+        requestAntiLagReapply()
+    end)
+    DebugPerfCore:NewToggle("Disable Shadows", "Disable part cast shadows", function(state)
+        Settings.AntiLagShadows = state
+        requestAntiLagReapply()
+    end)
+    DebugPerfCore:NewToggle("Low Lighting", "Lower lighting effects", function(state)
+        Settings.AntiLagLighting = state
+        requestAntiLagReapply()
+    end)
+
+    DebugPerfVisual:NewToggle("Hide Tokens", "Hide token parts", function(state)
+        Settings.HideTokens = state
+        requestAntiLagReapply()
+    end)
+    DebugPerfVisual:NewToggle("Hide Precise Targets", "Hide precise-related visuals", function(state)
+        Settings.HidePreciseTargets = state
+        requestAntiLagReapply()
+    end)
+    DebugPerfVisual:NewToggle("Hide Duped Tokens", "Hide duplicated token visuals", function(state)
+        Settings.HideDupedTokens = state
+        requestAntiLagReapply()
+    end)
+    DebugPerfVisual:NewToggle("Hide Marks", "Hide mark/target visuals", function(state)
+        Settings.HideMarks = state
+        requestAntiLagReapply()
+    end)
+    DebugPerfVisual:NewToggle("Hide Bees", "Hide bee models", function(state)
+        Settings.HideBees = state
+        requestAntiLagReapply()
+    end)
+    DebugPerfVisual:NewToggle("Hide Flowers", "Hide flower visuals", function(state)
+        Settings.HideFlowers = state
+        requestAntiLagReapply()
+    end)
+    DebugPerfVisual:NewToggle("Destroy Balloons", "Hide balloon visuals/collision", function(state)
+        Settings.DestroyBalloons = state
+        requestAntiLagReapply()
+    end)
+    DebugPerfVisual:NewToggle("Destroy Decorations", "Hide decoration meshes/parts", function(state)
+        Settings.DestroyDecorations = state
+        requestAntiLagReapply()
+    end)
+
+    DebugPerfWorld:NewToggle("Disable 3D Rendering", "Disable world rendering for FPS", function(state)
+        Settings.Disable3DRendering = state
+        requestAntiLagReapply()
+    end)
+    DebugPerfWorld:NewToggle("Hide Other Players", "Hide other player characters", function(state)
+        Settings.HideOtherPlayers = state
+        requestAntiLagReapply()
+    end)
+    DebugPerfWorld:NewToggle("Hide BSS UI", "Disable most game UIs", function(state)
+        Settings.HideBssUI = state
+        requestAntiLagReapply()
+    end)
+
+    local function rejoinNow(reason)
+        if Settings.EnableWebhook and Settings.WebhookSendDisconnect then
+            pcall(function()
+                sendWebhookSnapshot(reason or "Manual rejoin", false)
+            end)
+        end
+        pcall(function()
+            TeleportService:Teleport(game.PlaceId, LocalPlayer)
+        end)
     end
-    setDebugStatus(text)
-end)
 
+    DebugTools:NewButton("Apply Anti Lag Now", "Run anti-lag pass instantly", function()
+        applyAntiLagPass()
+        antiLagOneTimeApplied = true
+        antiLagDirty = false
+        setDebugStatus("AntiLag pass applied")
+    end)
+    DebugTools:NewButton("Restore Visuals", "Restore visual changes", function()
+        Settings.AntiLagEnabled = false
+        restoreAntiLag()
+        setDebugStatus("Visuals restored")
+    end)
+    DebugTools:NewButton("Rejoin Now", "Teleport back to this server type", function()
+        rejoinNow("Manual rejoin")
+    end)
+
+    local tokenScanLabel = DebugTools:NewLabel("Token scan: not run")
+    DebugTools:NewButton("Scan Token Names", "List token names to console", function()
+        local names = scanTokenNames()
+        local text = "Token scan: " .. tostring(#names) .. " names"
+        if tokenScanLabel and tokenScanLabel.UpdateLabel then
+            tokenScanLabel:UpdateLabel(text)
+        end
+        setDebugStatus(text)
+    end)
+end)
+if not okDebugUi then
+    warn("[ICHIGER] Debug UI failed: " .. tostring(debugUiErr))
 end
 
 task.spawn(function()
