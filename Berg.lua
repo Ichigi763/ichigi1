@@ -1,4 +1,5 @@
-
+-- ICHIGER | BSS Atlas-Style Macro
+-- Custom script build for Berg (Atlas-inspired)
 local LIBRARY_URL = "https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"
 
 local function loadUiLibrary()
@@ -24,7 +25,7 @@ end
 
 local Library, libraryError = loadUiLibrary()
 if not Library then
-    warn("[Ichigisss] UI load failed: " .. tostring(libraryError))
+    warn("[ICHIGER] UI load failed: " .. tostring(libraryError))
     return
 end
 
@@ -74,12 +75,46 @@ local FACE_METHODS = { "BodyGyro", "Shift Lock" }
 local SHIFT_DIRECTIONS = { "North", "South", "East", "West" }
 local FIELD_POSITIONS = { "Center", "North", "South", "East", "West" }
 local INSTANT_CONVERT_TYPES = { "Remote", "Tap", "Prompt" }
+local MOVEMENT_METHODS = { "Tween", "WalkTo", "Hybrid" }
+local SPRINKLER_TYPES = { "The Supreme Saturator", "Saturator", "Golden Gushers", "Silver Soakers", "Basic Sprinkler" }
+local DIG_METHODS = { "Remote", "ActivateTool", "Both" }
+local PLANTER_FIELDS = FIELDS
 local MASK_NAMES = {
     "None",
     "Gummy Mask",
     "Honey Mask",
     "Demon Mask",
     "Bubble Mask",
+}
+local RARES_LIST = { "None", "Mythic Meteors", "Precise Mark", "Guiding Star", "Sparkles" }
+local CONFIG_PROFILE_PRESETS = { "main", "preset1", "preset2", "preset3", "alt" }
+local MATERIALS = {
+    { key = "Enzymes", label = "Enzymes", aliases = { "enzyme", "enzymes" } },
+    { key = "Oil", label = "Oil", aliases = { "oil" } },
+    { key = "Glitter", label = "Glitter", aliases = { "glitter" } },
+    { key = "Gumdrops", label = "Gumdrops", aliases = { "gumdrop", "gumdrops" } },
+    { key = "TropicalDrink", label = "Tropical Drink", aliases = { "tropicaldrink", "tropical drink" } },
+    { key = "BlueExtract", label = "Blue Extract", aliases = { "blueextract", "blue extract" } },
+    { key = "RedExtract", label = "Red Extract", aliases = { "redextract", "red extract" } },
+    { key = "PurplePotion", label = "Purple Potion", aliases = { "purplepotion", "purple potion" } },
+}
+
+local ATLAS_TOY_CATEGORY_ALIASES = {
+    AutoToyBoosters = { "booster", "fieldbooster" },
+    AutoToyDispensers = { "dispenser", "honeydispenser", "blueberrydispenser", "strawberrydispenser" },
+    AutoToyMemoryMatch = { "memorymatch", "memory", "match" },
+    AutoToyWindShrine = { "windshrine", "shrine", "donate" },
+    AutoToyMaterials = { "enzyme", "oil", "glitter", "gumdrop" },
+    AutoToyStickers = { "sticker" },
+    AutoToyProgression = { "stump", "tunnel", "mondo", "quest" },
+    AutoToyBeesmas = { "beesmas", "giftbox", "samovar", "candles" },
+    AutoToyGummyBeacon = { "gummybeacon", "beacon", "gummy" },
+    AutoToyMisc = { "clock", "wealth", "treatdispenser", "royaljellydispenser" },
+    AutoToyDapperBearShop = { "dapper", "bearshop", "dappershop" },
+    AutoToyNectarCondenser = { "nectar", "condenser" },
+    AutoMoonAmulet = { "moonamulet", "moon" },
+    AutoStarAmulet = { "staramulet", "starhall" },
+    AutoHiveTasks = { "hive", "convert", "balloon" },
 }
 
 local DEFAULT = {
@@ -107,11 +142,22 @@ local DEFAULT = {
     PlayerSpeed = 70,
     TweenSpeed = 80,
     TweenSoftness = 70,
+    EnableWalkSpeed = true,
 
     AutoUseToys = false,
     ToyLoopDelay = 120,
     ToyTweenToTarget = true,
     SelectedToy = TOY_NAMES[1],
+    AutoUseMaterials = false,
+    MaterialsLoopDelay = 120,
+    Material_Enzymes = false,
+    Material_Oil = false,
+    Material_Glitter = false,
+    Material_Gumdrops = false,
+    Material_TropicalDrink = false,
+    Material_BlueExtract = false,
+    Material_RedExtract = false,
+    Material_PurplePotion = false,
 
     AntiLagEnabled = false,
     AntiLagParticles = true,
@@ -234,10 +280,94 @@ local DEFAULT = {
     PurchaseTreatsToLevelUp = false,
     UseRoyalJelly = false,
 
+    AllowGatherInterrupt = true,
+    AutoToyBoosters = false,
+    AutoToyDispensers = false,
+    AutoToyMemoryMatch = false,
+    AutoToyWindShrine = false,
+    AutoToyMaterials = false,
+    AutoToyStickers = false,
+    AutoToyProgression = false,
+    AutoToyBeesmas = false,
+    AutoToyGummyBeacon = false,
+    AutoToyMisc = false,
+    AutoToyDapperBearShop = false,
+    AutoToyNectarCondenser = false,
+    AutoMoonAmulet = false,
+    AutoStarAmulet = false,
+    AutoHiveTasks = false,
+
+    EnablePlanters = false,
+    PlanterAutoPlant = false,
+    PlanterAutoHarvest = true,
+    PlanterDuringDayOnly = false,
+    PlanterDuringNightOnly = false,
+    PlanterAllowedField = "Sunflower Field",
+    PlanterLoopDelay = 60,
+    PlanterTriggerFallback = true,
+
+    EnableRBC = false,
+    RBCAutoStart = true,
+    RBCAutoBuyPass = false,
+    RBCAutoCollectLoot = true,
+    RBCTweenCircle = false,
+    RBCAutoSpawn = false,
+    RBCUseTickets = false,
+    RBCLoopDelay = 8,
+
+    EnableWebhook = false,
+    WebhookUrl = "",
+    WebhookIntervalMinutes = 5,
+    WebhookSendBalloonPollen = true,
+    WebhookSendNectars = true,
+    WebhookSendPlanters = true,
+    WebhookSendItems = true,
+    WebhookSendConsole = false,
+    WebhookSendStickers = false,
+    WebhookSendBeequips = false,
+    WebhookSendQuestDone = false,
+    WebhookSendDigitalBeeDrives = false,
+    WebhookSendDapperBearShop = false,
+    WebhookSendDisconnect = true,
+    GraphEnabled = false,
+    GraphUseBranding = false,
+    GraphWebhookUrl = "",
+    DashboardEnabled = false,
+
+    UseRemotes = true,
+    MovementMethod = "Tween",
+    SprinklerType = "The Supreme Saturator",
+    AutoDigMethod = "Remote",
+    DynamicWalkSpeed = false,
+    AutoloadForUsername = "",
+
+    AnonymousMode = false,
+    FarmMultipleFields = false,
+    MobileToggleButton = true,
+    ShowAtlasConsole = true,
+    AutoRejoin = false,
+    RunWithoutAutofarm = false,
+    FastShowerTween = false,
+    FastCoconutTween = false,
+    FastTweenToRares = false,
+    RaresList = "None",
+    HideTokens = true,
+    HidePreciseTargets = true,
+    HideDupedTokens = true,
+    HideMarks = true,
+    HideBees = false,
+    HideFlowers = false,
+    DestroyBalloons = false,
+    DestroyDecorations = false,
+    Disable3DRendering = false,
+    HideOtherPlayers = false,
+    HideBssUI = false,
+    AutoRejoinDelay = 6,
+
     NoSafeMode = true,
 }
 
-local Settings = getgenv().IchigisssSettings or getgenv().BergBSSSettings or {}
+local Settings = getgenv().ICHIGERSettings or getgenv().IchigisssSettings or getgenv().BergBSSSettings or {}
 for k, v in pairs(DEFAULT) do
     if Settings[k] == nil then
         Settings[k] = v
@@ -249,6 +379,13 @@ for _, toy in ipairs(TOYS) do
         Settings[key] = false
     end
 end
+for _, material in ipairs(MATERIALS) do
+    local key = "Material_" .. material.key
+    if Settings[key] == nil then
+        Settings[key] = false
+    end
+end
+getgenv().ICHIGERSettings = Settings
 getgenv().IchigisssSettings = Settings
 
 local UITheme = {
@@ -285,7 +422,7 @@ local EFFECT_CLASSES = {
 }
 
 local HIVE_PART_HINTS = { "spawn", "platform", "pad", "circle", "base", "convert", "hive" }
-local CONFIG_FOLDER_NAME = "IchigisssConfigs"
+local CONFIG_FOLDER_NAME = "ICHIGERConfigs"
 local CONFIG_FILE_BASENAME = tostring(LocalPlayer.UserId) .. "_" .. tostring(game.PlaceId)
 local CONFIG_LEGACY_PATH = CONFIG_FOLDER_NAME .. "/" .. CONFIG_FILE_BASENAME .. ".json"
 local CONFIG_META_PATH = CONFIG_FOLDER_NAME .. "/meta_" .. CONFIG_FILE_BASENAME .. ".json"
@@ -300,14 +437,31 @@ local antiLagLoopRunning = false
 local combatLoopRunning = false
 local questLoopRunning = false
 local supportLoopRunning = false
+local planterLoopRunning = false
+local rbcLoopRunning = false
+local webhookLoopRunning = false
 
 local fieldCache = {}
 local toyCache = {}
 local toyUseTracker = {}
+local atlasToyTracker = {}
+local materialUseTracker = {}
 local antiLagBackups = setmetatable({}, { __mode = "k" })
+antiLagConnections = {}
+antiLagDirty = false
+antiLagOneTimeApplied = false
 local convertRemoteCache = nil
+local remoteAliasCache = {}
 local configWriteCache = {}
 local lastSprinklerUse = 0
+local lastWebhookSend = 0
+tokenNearestCache = {
+    at = 0,
+    field = nil,
+    pos = nil,
+    rootPos = nil,
+}
+TOKEN_NEAREST_CACHE_WINDOW = 0.12
 local VirtualInputManager = nil
 local VirtualUser = nil
 pcall(function()
@@ -316,6 +470,11 @@ end)
 pcall(function()
     VirtualUser = game:GetService("VirtualUser")
 end)
+
+triggerFromInstance = nil
+useMaterialOnce = nil
+tryPlanterAction = nil
+materialSettingKey = nil
 
 local function normalizeText(value)
     local s = string.lower(tostring(value or ""))
@@ -363,7 +522,28 @@ end
 local function applyWalkSpeed()
     local _, humanoid = getRootAndHumanoid()
     if humanoid then
-        humanoid.WalkSpeed = math.clamp(Settings.PlayerSpeed, 40, 120)
+        if not Settings.EnableWalkSpeed then
+            humanoid.WalkSpeed = 16
+            return
+        end
+        local targetSpeed = math.clamp(Settings.PlayerSpeed, 40, 120)
+        if Settings.DynamicWalkSpeed then
+            local bag = 0
+            local stats = LocalPlayer:FindFirstChild("CoreStats")
+            if stats then
+                local pollen = stats:FindFirstChild("Pollen")
+                local capacity = stats:FindFirstChild("Capacity")
+                if pollen and capacity and capacity.Value > 0 then
+                    bag = (pollen.Value / capacity.Value) * 100
+                end
+            end
+            if bag >= 95 then
+                targetSpeed = math.clamp(targetSpeed + 12, 40, 120)
+            elseif bag <= 30 then
+                targetSpeed = math.clamp(targetSpeed - 8, 40, 120)
+            end
+        end
+        humanoid.WalkSpeed = targetSpeed
     end
 end
 
@@ -414,6 +594,50 @@ local function walkTo(targetPos, stopDistance, timeout, cancelFn)
     end
 
     return false
+end
+
+local function moveToPosition(targetPos, stopDistance, timeout, cancelFn)
+    local method = tostring(Settings.MovementMethod or "Tween")
+    if method == "WalkTo" then
+        return walkTo(targetPos, stopDistance, timeout, cancelFn)
+    end
+
+    local function tweenMove()
+        local root = select(1, getRootAndHumanoid())
+        if not root then
+            return false
+        end
+        local y = root.Position.Y
+        local finalPos = Vector3.new(targetPos.X, y, targetPos.Z)
+        local dist = (root.Position - finalPos).Magnitude
+        local tweenSpeed = math.clamp(tonumber(Settings.TweenSpeed) or 80, 40, 120)
+        local duration = math.clamp(dist / tweenSpeed, 0.08, 8)
+        stopTween()
+        local rotationOnly = root.CFrame - root.Position
+        local tweenGoal = CFrame.new(finalPos) * rotationOnly
+        local tween = TweenService:Create(
+            root,
+            TweenInfo.new(duration, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut),
+            { CFrame = tweenGoal }
+        )
+        currentTween = tween
+        tween:Play()
+        tween.Completed:Wait()
+        if currentTween == tween then
+            currentTween = nil
+        end
+        return true
+    end
+
+    if method == "Tween" then
+        return tweenMove()
+    end
+
+    local walked = walkTo(targetPos, stopDistance, timeout, cancelFn)
+    if walked then
+        return true
+    end
+    return tweenMove()
 end
 
 local function getActiveTweenSpeed()
@@ -616,6 +840,16 @@ local function getNearestTokenInField(fieldName)
         return nil
     end
 
+    local now = os.clock()
+    if tokenNearestCache.pos
+        and tokenNearestCache.field == fieldName
+        and (now - tokenNearestCache.at) <= TOKEN_NEAREST_CACHE_WINDOW
+        and tokenNearestCache.rootPos
+        and (root.Position - tokenNearestCache.rootPos).Magnitude <= 6
+    then
+        return tokenNearestCache.pos
+    end
+
     local collectibles = getCollectiblesFolder()
     if not collectibles then
         return nil
@@ -635,6 +869,11 @@ local function getNearestTokenInField(fieldName)
             end
         end
     end
+
+    tokenNearestCache.at = now
+    tokenNearestCache.field = fieldName
+    tokenNearestCache.pos = bestPos
+    tokenNearestCache.rootPos = root.Position
 
     return bestPos
 end
@@ -1117,46 +1356,130 @@ local function getSearchRoots()
     return roots
 end
 
-local function callRemoteByAliases(aliases, ...)
-    local args = { ... }
+local function isRemoteAction(instance)
+    return instance
+        and (instance:IsA("RemoteEvent")
+        or instance:IsA("RemoteFunction")
+        or instance:IsA("BindableEvent")
+        or instance:IsA("BindableFunction"))
+end
+
+local function normalizeAliases(aliases)
+    local out = {}
+    for _, alias in ipairs(aliases or {}) do
+        local normalized = normalizeText(alias)
+        if normalized ~= "" then
+            table.insert(out, normalized)
+        end
+    end
+    return out
+end
+
+local function buildAliasCacheKey(normalizedAliases)
+    local copy = {}
+    for i, alias in ipairs(normalizedAliases) do
+        copy[i] = alias
+    end
+    table.sort(copy)
+    return table.concat(copy, "|")
+end
+
+local function gatherRemotesByAliases(normalizedAliases)
+    local found = {}
     for _, root in ipairs(getSearchRoots()) do
-        for _, d in ipairs(root:GetDescendants()) do
-            local isRemote = d:IsA("RemoteEvent") or d:IsA("RemoteFunction") or d:IsA("BindableEvent") or d:IsA("BindableFunction")
-            if isRemote then
-                local normalized = normalizeText(d.Name)
-                local matched = false
-                for _, alias in ipairs(aliases) do
-                    local a = normalizeText(alias)
-                    if a ~= "" and string.find(normalized, a, 1, true) then
-                        matched = true
+        for _, obj in ipairs(root:GetDescendants()) do
+            if isRemoteAction(obj) then
+                local normalizedName = normalizeText(obj.Name)
+                for _, alias in ipairs(normalizedAliases) do
+                    if string.find(normalizedName, alias, 1, true) then
+                        table.insert(found, obj)
                         break
                     end
                 end
-                if not matched then
-                    continue
-                end
+            end
+        end
+    end
+    return found
+end
 
-                local ok = false
-                if d:IsA("RemoteEvent") then
-                    ok = pcall(function()
-                        d:FireServer(table.unpack(args))
-                    end)
-                elseif d:IsA("RemoteFunction") then
-                    ok = pcall(function()
-                        d:InvokeServer(table.unpack(args))
-                    end)
-                elseif d:IsA("BindableEvent") then
-                    ok = pcall(function()
-                        d:Fire(table.unpack(args))
-                    end)
-                elseif d:IsA("BindableFunction") then
-                    ok = pcall(function()
-                        d:Invoke(table.unpack(args))
-                    end)
-                end
-                if ok then
-                    return true
-                end
+local function getCachedRemotesByAliases(normalizedAliases)
+    local cacheKey = buildAliasCacheKey(normalizedAliases)
+    local cached = remoteAliasCache[cacheKey]
+    if cached then
+        local valid = {}
+        for _, remote in ipairs(cached) do
+            if remote and remote.Parent and isRemoteAction(remote) then
+                table.insert(valid, remote)
+            end
+        end
+        if #valid > 0 then
+            remoteAliasCache[cacheKey] = valid
+            return valid
+        end
+    end
+
+    local found = gatherRemotesByAliases(normalizedAliases)
+    remoteAliasCache[cacheKey] = found
+    return found
+end
+
+local function buildRemoteArgAttempts(baseArgs)
+    local attempts = {}
+    local function push(args)
+        local packed = {}
+        for i, v in ipairs(args) do
+            packed[i] = v
+        end
+        table.insert(attempts, packed)
+    end
+
+    push(baseArgs)
+    push({})
+    if #baseArgs > 0 then
+        push({ "Use", table.unpack(baseArgs) })
+        push({ "Activate", table.unpack(baseArgs) })
+        push({ "Collect", table.unpack(baseArgs) })
+        push({ "Start", table.unpack(baseArgs) })
+        push({ LocalPlayer, table.unpack(baseArgs) })
+        push({ LocalPlayer, "Use", table.unpack(baseArgs) })
+    end
+    return attempts
+end
+
+local function tryCallRemoteWithArgs(remote, args)
+    if remote:IsA("RemoteEvent") then
+        return pcall(function()
+            remote:FireServer(table.unpack(args))
+        end)
+    elseif remote:IsA("RemoteFunction") then
+        return pcall(function()
+            remote:InvokeServer(table.unpack(args))
+        end)
+    elseif remote:IsA("BindableEvent") then
+        return pcall(function()
+            remote:Fire(table.unpack(args))
+        end)
+    elseif remote:IsA("BindableFunction") then
+        return pcall(function()
+            remote:Invoke(table.unpack(args))
+        end)
+    end
+    return false
+end
+
+local function callRemoteByAliases(aliases, ...)
+    local normalizedAliases = normalizeAliases(aliases)
+    if #normalizedAliases == 0 then
+        return false
+    end
+
+    local baseArgs = { ... }
+    local argAttempts = buildRemoteArgAttempts(baseArgs)
+    local remotes = getCachedRemotesByAliases(normalizedAliases)
+    for _, remote in ipairs(remotes) do
+        for _, args in ipairs(argAttempts) do
+            if tryCallRemoteWithArgs(remote, args) then
+                return true
             end
         end
     end
@@ -1188,7 +1511,13 @@ local function tryAutoSprinklerTick()
         return false
     end
 
-    local ok = callRemoteByAliases({ "sprinkler", "sprinklerbuilder", "sprinklerbuilderactor", "place sprinklers" })
+    local ok = false
+    if Settings.UseRemotes then
+        ok = callRemoteByAliases({ "sprinkler", "sprinklerbuilder", "sprinklerbuilderactor", "place sprinklers" }, Settings.SprinklerType)
+    end
+    if not ok then
+        ok = callRemoteByAliases({ "sprinkler" }, Settings.SprinklerType)
+    end
     if ok then
         lastSprinklerUse = os.clock()
     end
@@ -1199,7 +1528,21 @@ local function tryAutoDigTick()
     if not Settings.AutoDig then
         return false
     end
-    return activateCurrentTool()
+    local method = tostring(Settings.AutoDigMethod or "Remote")
+    if method == "Remote" then
+        if Settings.UseRemotes then
+            return callRemoteByAliases({ "dig", "tool", "collectpollen" }) or activateCurrentTool()
+        end
+        return activateCurrentTool()
+    end
+    if method == "ActivateTool" then
+        return activateCurrentTool()
+    end
+    local remoteOk = false
+    if Settings.UseRemotes then
+        remoteOk = callRemoteByAliases({ "dig", "tool", "collectpollen" })
+    end
+    return remoteOk or activateCurrentTool()
 end
 
 local function getFieldCenterPosition()
@@ -1469,6 +1812,25 @@ local function runQuestLoop(updateStatus)
             didAny = callRemoteByAliases({ "quest", "claim", "reward" }) or didAny
         end
 
+        if Settings.QuestFarmAnts then
+            didAny = callRemoteByAliases({ "ant", "challenge", "token" }) or didAny
+        end
+        if Settings.QuestFarmRageTokens then
+            didAny = callRemoteByAliases({ "rage", "token" }) or didAny
+        end
+        if Settings.QuestDoWindShrine then
+            didAny = callRemoteByAliases({ "windshrine", "donate", "wind shrine" }) or didAny
+        end
+        if Settings.QuestDoMemoryMatch then
+            didAny = callRemoteByAliases({ "memorymatch", "memory", "match" }) or didAny
+        end
+        if Settings.QuestShareJellyBeans then
+            didAny = callRemoteByAliases({ "jellybean", "share" }) or didAny
+        end
+        if Settings.QuestCraftItems then
+            didAny = callRemoteByAliases({ "craft", "blender" }) or didAny
+        end
+
         if Settings.QuestUseToys then
             for _, toy in ipairs(TOYS) do
                 local key = "Toy_" .. toy.key
@@ -1503,6 +1865,296 @@ local function runQuestLoop(updateStatus)
     questLoopRunning = false
 end
 
+local function isDaytime()
+    local hour = tonumber(Lighting.ClockTime) or 12
+    return hour >= 6 and hour < 18
+end
+
+local function runAtlasToyCategoryTick()
+    if not Settings.AllowGatherInterrupt and Settings.AutoFarm then
+        return
+    end
+    local now = os.clock()
+    local perCategoryDelay = math.max(20, tonumber(Settings.ToyLoopDelay) or 120)
+    for settingKey, aliases in pairs(ATLAS_TOY_CATEGORY_ALIASES) do
+        if settingKey == "AutoToyMaterials" and Settings.AutoUseMaterials then
+            continue
+        end
+        if Settings[settingKey] then
+            local lastUse = atlasToyTracker[settingKey] or 0
+            if (now - lastUse) >= perCategoryDelay then
+                callRemoteByAliases(aliases, Settings.FieldName)
+                atlasToyTracker[settingKey] = now
+            end
+        end
+    end
+end
+
+local function runAutoMaterialsTick()
+    if not Settings.AutoUseMaterials then
+        return
+    end
+
+    local now = os.clock()
+    local delay = math.clamp(tonumber(Settings.MaterialsLoopDelay) or 120, 10, 900)
+    for _, material in ipairs(MATERIALS) do
+        local key = materialSettingKey(material)
+        if Settings[key] then
+            local lastUse = materialUseTracker[material.key] or 0
+            if (now - lastUse) >= delay then
+                if useMaterialOnce then
+                    useMaterialOnce(material)
+                end
+                materialUseTracker[material.key] = os.clock()
+            end
+        end
+    end
+end
+
+local function safePlantFieldName()
+    if Settings.PlanterAllowedField and Settings.PlanterAllowedField ~= "" then
+        return Settings.PlanterAllowedField
+    end
+    return Settings.FieldName
+end
+
+local function runPlanterLoop(updateStatus)
+    if planterLoopRunning then
+        return
+    end
+    planterLoopRunning = true
+
+    while Settings.EnablePlanters do
+        if isAtlasPaused() then
+            task.wait(0.3)
+            continue
+        end
+
+        local allowedByTime = true
+        if Settings.PlanterDuringDayOnly and not isDaytime() then
+            allowedByTime = false
+        end
+        if Settings.PlanterDuringNightOnly and isDaytime() then
+            allowedByTime = false
+        end
+
+        local didAny = false
+        if allowedByTime then
+            local targetField = safePlantFieldName()
+            if Settings.PlanterAutoHarvest then
+                if tryPlanterAction then
+                    local okHarvest = tryPlanterAction("Harvest", targetField)
+                    didAny = okHarvest or didAny
+                else
+                    didAny = callRemoteByAliases({ "planter", "harvest", "collectplanter" }, targetField) or didAny
+                end
+            end
+            if Settings.PlanterAutoPlant then
+                if tryPlanterAction then
+                    local okPlant = tryPlanterAction("Plant", targetField)
+                    didAny = okPlant or didAny
+                else
+                    didAny = callRemoteByAliases({ "planter", "plant", "placeplanter" }, targetField) or didAny
+                end
+            end
+        end
+
+        if updateStatus then
+            if not allowedByTime then
+                updateStatus("Planters: waiting time")
+            else
+                updateStatus(didAny and "Planters: active" or "Planters: idle")
+            end
+        end
+
+        task.wait(math.clamp(tonumber(Settings.PlanterLoopDelay) or 60, 8, 300))
+    end
+
+    planterLoopRunning = false
+end
+
+local function runRbcLoop(updateStatus)
+    if rbcLoopRunning then
+        return
+    end
+    rbcLoopRunning = true
+
+    while Settings.EnableRBC do
+        if isAtlasPaused() then
+            task.wait(0.3)
+            continue
+        end
+
+        local didAny = false
+        if Settings.RBCAutoBuyPass then
+            didAny = callRemoteByAliases({ "rbc", "robobear", "pass", "buy" }) or didAny
+        end
+        if Settings.RBCAutoStart then
+            didAny = callRemoteByAliases({ "rbc", "robobear", "challenge", "start" }) or didAny
+        end
+        if Settings.RBCAutoSpawn then
+            didAny = callRemoteByAliases({ "rbc", "spawn", "summon" }) or didAny
+        end
+        if Settings.RBCUseTickets then
+            didAny = callRemoteByAliases({ "ticket", "rbc", "use" }) or didAny
+        end
+        if Settings.RBCAutoCollectLoot then
+            didAny = callRemoteByAliases({ "rbc", "loot", "collect" }) or didAny
+        end
+
+        if updateStatus then
+            updateStatus(didAny and "RBC: active" or "RBC: idle")
+        end
+        task.wait(math.clamp(tonumber(Settings.RBCLoopDelay) or 8, 3, 90))
+    end
+
+    rbcLoopRunning = false
+end
+
+local function isWebhookUrlValid(url)
+    local s = tostring(url or "")
+    return s ~= "" and (
+        string.find(s, "https://discord.com/api/webhooks/", 1, true)
+        or string.find(s, "https://discordapp.com/api/webhooks/", 1, true)
+    )
+end
+
+local function sendDiscordWebhook(url, title, description, color)
+    if not isWebhookUrlValid(url) then
+        return false, "Webhook URL invalid"
+    end
+
+    local payload = {
+        username = "ICHIGER",
+        embeds = {
+            {
+                title = title,
+                description = description,
+                color = color or 3447003,
+                timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ"),
+                footer = { text = "ICHIGER Atlas-style" },
+            },
+        },
+    }
+
+    local okEncode, encoded = pcall(function()
+        return HttpService:JSONEncode(payload)
+    end)
+    if not okEncode then
+        return false, "Webhook encode failed"
+    end
+
+    local okPost, err = pcall(function()
+        HttpService:PostAsync(url, encoded, Enum.HttpContentType.ApplicationJson, false)
+    end)
+    if not okPost then
+        return false, tostring(err)
+    end
+
+    return true, "Sent"
+end
+
+local function buildWebhookSummary(reason)
+    local lines = {
+        "**" .. tostring(reason or "Status") .. "**",
+        "Field: `" .. tostring(Settings.FieldName) .. "`",
+        "Bag: `" .. string.format("%.1f%%", getBagPercent()) .. "`",
+    }
+
+    if Settings.WebhookSendBalloonPollen then
+        table.insert(lines, "Balloon pollen: enabled")
+    end
+    if Settings.WebhookSendNectars then
+        table.insert(lines, "Nectar scan: enabled")
+    end
+    if Settings.WebhookSendPlanters then
+        table.insert(lines, "Planter scan: enabled")
+    end
+    if Settings.WebhookSendItems then
+        table.insert(lines, "Items scan: enabled")
+    end
+    if Settings.WebhookSendQuestDone and Settings.AutoQuest then
+        table.insert(lines, "Quests: auto")
+    end
+
+    return table.concat(lines, "\n")
+end
+
+local function sendWebhookSnapshot(reason, graphMode)
+    local url = graphMode and Settings.GraphWebhookUrl or Settings.WebhookUrl
+    if not isWebhookUrlValid(url) then
+        return false, "Webhook URL invalid"
+    end
+
+    local title
+    if graphMode then
+        title = Settings.GraphUseBranding and "Natro Macro Graph" or "ICHIGER Graph"
+    else
+        title = "ICHIGER Webhook"
+    end
+
+    local color = graphMode and 10181046 or 3447003
+    return sendDiscordWebhook(url, title, buildWebhookSummary(reason), color)
+end
+
+local function shouldAutoRejoinNow()
+    local coreGui = game:GetService("CoreGui")
+    local promptGui = coreGui:FindFirstChild("RobloxPromptGui")
+    local promptOverlay = promptGui and promptGui:FindFirstChild("promptOverlay")
+    local errorPrompt = promptOverlay and promptOverlay:FindFirstChild("ErrorPrompt")
+    return errorPrompt and errorPrompt.Visible
+end
+
+local lastRejoinAttempt = 0
+local function tryAutoRejoin()
+    if not Settings.AutoRejoin then
+        return
+    end
+
+    local delaySeconds = math.clamp(tonumber(Settings.AutoRejoinDelay) or 6, 2, 30)
+    if not shouldAutoRejoinNow() then
+        return
+    end
+    if (os.clock() - lastRejoinAttempt) < delaySeconds then
+        return
+    end
+
+    lastRejoinAttempt = os.clock()
+    if Settings.EnableWebhook and Settings.WebhookSendDisconnect then
+        pcall(function()
+            sendWebhookSnapshot("Disconnect detected, rejoining", false)
+        end)
+    end
+    pcall(function()
+        TeleportService:Teleport(game.PlaceId, LocalPlayer)
+    end)
+end
+
+local function runWebhookLoop(updateStatus)
+    if webhookLoopRunning then
+        return
+    end
+    webhookLoopRunning = true
+
+    while true do
+        local intervalMinutes = math.clamp(tonumber(Settings.WebhookIntervalMinutes) or 5, 1, 120)
+        local intervalSeconds = intervalMinutes * 60
+        if Settings.EnableWebhook then
+            if os.clock() - lastWebhookSend >= intervalSeconds then
+                local ok, msg = sendWebhookSnapshot("Interval update", false)
+                if Settings.GraphEnabled and isWebhookUrlValid(Settings.GraphWebhookUrl) then
+                    sendWebhookSnapshot("Graph update", true)
+                end
+                lastWebhookSend = os.clock()
+                if updateStatus then
+                    updateStatus(ok and "Webhook: sent" or ("Webhook: " .. tostring(msg)))
+                end
+            end
+        end
+        task.wait(2)
+    end
+end
+
 local function runSupportLoop()
     if supportLoopRunning then
         return
@@ -1510,16 +2162,19 @@ local function runSupportLoop()
     supportLoopRunning = true
 
     while true do
-        local enabled = Settings.AutoDig or Settings.AutoSprinkler
-        if not enabled then
-            task.wait(0.3)
-        else
-            if not isAtlasPaused() then
-                tryAutoDigTick()
-                tryAutoSprinklerTick()
+        if not isAtlasPaused() then
+            local shouldRunBackground = Settings.AutoFarm or Settings.RunWithoutAutofarm
+            if shouldRunBackground then
+                if Settings.AutoDig or Settings.AutoSprinkler then
+                    tryAutoDigTick()
+                    tryAutoSprinklerTick()
+                end
+                runAtlasToyCategoryTick()
+                runAutoMaterialsTick()
             end
-            task.wait(0.1)
         end
+        tryAutoRejoin()
+        task.wait(0.1)
     end
 end
 
@@ -1666,7 +2321,7 @@ local function runAutoFarm()
                     if awayDir.Magnitude > 0 then
                         awayDir = awayDir.Unit
                         local awayTarget = root.Position + (awayDir * 16)
-                        walkTo(Vector3.new(awayTarget.X, root.Position.Y, awayTarget.Z), 6, 1.1, function()
+                        moveToPosition(Vector3.new(awayTarget.X, root.Position.Y, awayTarget.Z), 6, 1.1, function()
                             return not Settings.AutoFarm
                         end)
                     end
@@ -1680,13 +2335,13 @@ local function runAutoFarm()
                 if root then
                     walkTarget = Vector3.new(tokenPos.X, root.Position.Y, tokenPos.Z)
                 end
-                walkTo(walkTarget, 4, 2.6, function()
+                moveToPosition(walkTarget, 4, 2.6, function()
                     return not Settings.AutoFarm
                 end)
             else
                 local walkPos = getRandomPointInField(Settings.FieldName)
                 if walkPos then
-                    walkTo(walkPos, 5, 3, function()
+                    moveToPosition(walkPos, 5, 3, function()
                         return not Settings.AutoFarm
                     end)
                 else
@@ -1737,6 +2392,10 @@ end
 
 local function toySettingKey(toy)
     return "Toy_" .. toy.key
+end
+
+materialSettingKey = function(material)
+    return "Material_" .. material.key
 end
 
 local function nameMatchesAliases(rawName, aliases)
@@ -1822,7 +2481,7 @@ local function triggerTouch(instance)
     return ok
 end
 
-local function triggerFromInstance(instance)
+triggerFromInstance = function(instance)
     if not instance then
         return false, "none"
     end
@@ -1856,6 +2515,164 @@ local function triggerFromInstance(instance)
     end
 
     return false, "none"
+end
+
+local function getNearestAliasObject(aliases, maxDistance)
+    local normalizedAliases = normalizeAliases(aliases)
+    if #normalizedAliases == 0 then
+        return nil
+    end
+
+    local root = select(1, getRootAndHumanoid())
+    local rootPos = root and root.Position or nil
+    local bestObj = nil
+    local bestDist = math.huge
+
+    local function considerObject(obj)
+        local part = getPart(obj)
+        if not part then
+            return
+        end
+
+        local dist = 0
+        if rootPos then
+            dist = (rootPos - part.Position).Magnitude
+            if maxDistance and dist > maxDistance then
+                return
+            end
+        end
+
+        if dist < bestDist then
+            bestDist = dist
+            bestObj = obj
+        end
+    end
+
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("Model") or obj:IsA("BasePart") then
+            local normalizedName = normalizeText(obj.Name)
+            for _, alias in ipairs(normalizedAliases) do
+                if string.find(normalizedName, alias, 1, true) then
+                    considerObject(obj)
+                    break
+                end
+            end
+        elseif (obj:IsA("ProximityPrompt") or obj:IsA("ClickDetector")) and obj.Parent then
+            local normalizedName = normalizeText(obj.Parent.Name)
+            for _, alias in ipairs(normalizedAliases) do
+                if string.find(normalizedName, alias, 1, true) then
+                    considerObject(obj.Parent)
+                    break
+                end
+            end
+        end
+    end
+
+    return bestObj
+end
+
+local function tryTriggerByAliases(aliases, maxDistance)
+    local obj = getNearestAliasObject(aliases, maxDistance)
+    if not obj then
+        return false, "not found"
+    end
+    return triggerFromInstance(obj)
+end
+
+local function findToolInInventoryByAliases(aliases)
+    local containers = {}
+    local character = getCharacter()
+    if character then
+        table.insert(containers, character)
+    end
+    local backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
+    if backpack then
+        table.insert(containers, backpack)
+    end
+
+    for _, container in ipairs(containers) do
+        for _, child in ipairs(container:GetChildren()) do
+            if child:IsA("Tool") and nameMatchesAliases(child.Name, aliases) then
+                return child
+            end
+        end
+    end
+    return nil
+end
+
+useMaterialOnce = function(material)
+    if not material then
+        return false, "invalid"
+    end
+
+    local aliases = material.aliases or {}
+    local itemLabel = material.label or material.key
+
+    if Settings.UseRemotes then
+        if callRemoteByAliases(aliases, itemLabel) then
+            return true, "remote:item"
+        end
+        if callRemoteByAliases({ "useitem", "consume", "inventoryitem", "itemuse" }, itemLabel) then
+            return true, "remote:useitem"
+        end
+        if callRemoteByAliases({ "use", "consume" }, itemLabel, 1) then
+            return true, "remote:consume"
+        end
+    end
+
+    local tool = findToolInInventoryByAliases(aliases)
+    if tool then
+        local ok = pcall(function()
+            if tool.Parent ~= getCharacter() then
+                tool.Parent = getCharacter()
+            end
+            tool:Activate()
+        end)
+        if ok then
+            return true, "tool:activate"
+        end
+    end
+
+    local okTrigger, method = tryTriggerByAliases(aliases, 45)
+    if okTrigger then
+        return true, "trigger:" .. tostring(method)
+    end
+
+    return false, "not found/blocked"
+end
+
+tryPlanterAction = function(mode, targetField)
+    mode = tostring(mode or "Plant")
+    targetField = tostring(targetField or safePlantFieldName())
+
+    local didRemote = false
+    if Settings.UseRemotes then
+        if mode == "Harvest" then
+            didRemote = callRemoteByAliases({ "planter", "harvest", "collectplanter", "plantercollect" }, targetField)
+                or callRemoteByAliases({ "planter", "harvest", "collectplanter", "plantercollect" }, "All")
+        else
+            didRemote = callRemoteByAliases({ "planter", "plant", "placeplanter", "spawnplanter" }, targetField)
+                or callRemoteByAliases({ "planter", "plant", "placeplanter", "spawnplanter" }, "Paper Planter", targetField)
+                or callRemoteByAliases({ "planter", "plant", "placeplanter", "spawnplanter" }, "Plastic Planter", targetField)
+                or callRemoteByAliases({ "planter", "plant", "placeplanter", "spawnplanter" }, targetField, "Paper Planter")
+        end
+    end
+
+    if didRemote then
+        return true, "remote"
+    end
+
+    if Settings.PlanterTriggerFallback then
+        local aliases = mode == "Harvest"
+            and { "planter", "harvest", "collect", "sprout" }
+            or { "planter", "plant", "place", "shop" }
+        local okTrigger, method = tryTriggerByAliases(aliases, 65)
+        if okTrigger then
+            return true, tostring(method)
+        end
+    end
+
+    return false, "not found"
 end
 
 local function toyRoots()
@@ -1917,6 +2734,12 @@ local function findToyObject(toy)
 end
 
 local function useToy(toy)
+    if Settings.UseRemotes then
+        if callRemoteByAliases(toy.aliases, "Use") or callRemoteByAliases(toy.aliases) then
+            return true, "remote:aliases"
+        end
+    end
+
     local remote = findToyRemote(toy)
     if remote then
         local ok, method = triggerRemote(remote)
@@ -2011,7 +2834,121 @@ local function backupAndSet(instance, prop, newValue)
     return okSet
 end
 
-local function applyAntiLagPass()
+local function clearAntiLagConnections()
+    for i = #antiLagConnections, 1, -1 do
+        local connection = antiLagConnections[i]
+        antiLagConnections[i] = nil
+        if connection then
+            pcall(function()
+                connection:Disconnect()
+            end)
+        end
+    end
+end
+
+local function trackAntiLagConnection(connection)
+    if connection then
+        table.insert(antiLagConnections, connection)
+    end
+end
+
+local function shouldHideBssGui(gui)
+    local n = normalizeText(gui.Name)
+    return not string.find(n, "kavo", 1, true) and not string.find(n, "ichiger", 1, true)
+end
+
+local function applyAntiLagToInstance(d)
+    if not d or not d.Parent then
+        return
+    end
+
+    if Settings.AntiLagParticles and EFFECT_CLASSES[d.ClassName] then
+        backupAndSet(d, "Enabled", false)
+    end
+
+    if Settings.AntiLagTextures and (d:IsA("Decal") or d:IsA("Texture")) then
+        backupAndSet(d, "Transparency", 1)
+    end
+
+    if d:IsA("ScreenGui") and Settings.HideBssUI and shouldHideBssGui(d) then
+        backupAndSet(d, "Enabled", false)
+    end
+
+    if not d:IsA("BasePart") then
+        return
+    end
+
+    if Settings.AntiLagShadows then
+        backupAndSet(d, "CastShadow", false)
+    end
+
+    local normalizedName = normalizeText(d.Name)
+    if Settings.HidePreciseTargets and string.find(normalizedName, "precise", 1, true) then
+        backupAndSet(d, "Transparency", 1)
+    end
+    if Settings.HideMarks and string.find(normalizedName, "mark", 1, true) then
+        backupAndSet(d, "Transparency", 1)
+    end
+    if Settings.HideDupedTokens and string.find(normalizedName, "dupe", 1, true) then
+        backupAndSet(d, "Transparency", 1)
+    end
+    if Settings.DestroyBalloons and string.find(normalizedName, "balloon", 1, true) then
+        backupAndSet(d, "Transparency", 1)
+        backupAndSet(d, "CanCollide", false)
+    end
+    if Settings.DestroyDecorations then
+        if string.find(normalizedName, "tree", 1, true)
+            or string.find(normalizedName, "bush", 1, true)
+            or string.find(normalizedName, "rock", 1, true)
+            or string.find(normalizedName, "deco", 1, true)
+        then
+            backupAndSet(d, "Transparency", 1)
+            backupAndSet(d, "CanCollide", false)
+        end
+    end
+
+    if Settings.HideTokens then
+        local collectibles = getCollectiblesFolder()
+        if collectibles and d:IsDescendantOf(collectibles) then
+            backupAndSet(d, "Transparency", 1)
+            backupAndSet(d, "CanCollide", false)
+        end
+    end
+
+    if Settings.HideFlowers then
+        local flowers = workspace:FindFirstChild("Flowers") or workspace:FindFirstChild("FlowerZones")
+        if flowers and d:IsDescendantOf(flowers) then
+            backupAndSet(d, "Transparency", 1)
+        end
+    end
+
+    if Settings.HideBees then
+        local model = d:FindFirstAncestorOfClass("Model")
+        if model and string.find(normalizeText(model.Name), "bee", 1, true) then
+            backupAndSet(d, "Transparency", 1)
+        end
+    end
+
+    if Settings.HideOtherPlayers then
+        local characterModel = d:FindFirstAncestorOfClass("Model")
+        local owner = characterModel and Players:GetPlayerFromCharacter(characterModel)
+        if owner and owner ~= LocalPlayer then
+            backupAndSet(d, "LocalTransparencyModifier", 1)
+        end
+    end
+end
+
+local function applyAntiLagGlobalState()
+    if Settings.Disable3DRendering then
+        pcall(function()
+            RunService:Set3dRenderingEnabled(false)
+        end)
+    else
+        pcall(function()
+            RunService:Set3dRenderingEnabled(true)
+        end)
+    end
+
     if Settings.AntiLagLighting then
         backupAndSet(Lighting, "GlobalShadows", false)
         backupAndSet(Lighting, "FogEnd", 100000)
@@ -2025,23 +2962,33 @@ local function applyAntiLagPass()
             backupAndSet(terrain, "WaterTransparency", 1)
         end
     end
+end
+
+local function applyAntiLagPass()
+    applyAntiLagGlobalState()
 
     for _, d in ipairs(workspace:GetDescendants()) do
-        if Settings.AntiLagParticles and EFFECT_CLASSES[d.ClassName] then
-            backupAndSet(d, "Enabled", false)
-        end
+        applyAntiLagToInstance(d)
+    end
 
-        if Settings.AntiLagTextures and (d:IsA("Decal") or d:IsA("Texture")) then
-            backupAndSet(d, "Transparency", 1)
-        end
-
-        if Settings.AntiLagShadows and d:IsA("BasePart") then
-            backupAndSet(d, "CastShadow", false)
+    if Settings.HideBssUI then
+        local playerGui = LocalPlayer:FindFirstChildOfClass("PlayerGui")
+        if playerGui then
+            for _, gui in ipairs(playerGui:GetDescendants()) do
+                applyAntiLagToInstance(gui)
+            end
         end
     end
 end
 
+local function requestAntiLagReapply()
+    if Settings.AntiLagEnabled then
+        antiLagDirty = true
+    end
+end
+
 local function restoreAntiLag()
+    clearAntiLagConnections()
     for instance, props in pairs(antiLagBackups) do
         if instance and instance.Parent then
             for prop, oldValue in pairs(props) do
@@ -2052,6 +2999,62 @@ local function restoreAntiLag()
         end
     end
     antiLagBackups = setmetatable({}, { __mode = "k" })
+    pcall(function()
+        RunService:Set3dRenderingEnabled(true)
+    end)
+    antiLagDirty = false
+    antiLagOneTimeApplied = false
+end
+
+local function setupAntiLagEventHooks()
+    clearAntiLagConnections()
+
+    trackAntiLagConnection(workspace.DescendantAdded:Connect(function(descendant)
+        if not Settings.AntiLagEnabled then
+            return
+        end
+        task.defer(function()
+            applyAntiLagToInstance(descendant)
+        end)
+    end))
+
+    local function hookCharacter(character)
+        if not character or not Settings.AntiLagEnabled then
+            return
+        end
+        task.defer(function()
+            for _, d in ipairs(character:GetDescendants()) do
+                applyAntiLagToInstance(d)
+            end
+        end)
+    end
+
+    local function hookPlayer(player)
+        if not player or player == LocalPlayer then
+            return
+        end
+        if player.Character then
+            hookCharacter(player.Character)
+        end
+        trackAntiLagConnection(player.CharacterAdded:Connect(hookCharacter))
+    end
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        hookPlayer(player)
+    end
+    trackAntiLagConnection(Players.PlayerAdded:Connect(hookPlayer))
+
+    local playerGui = LocalPlayer:FindFirstChildOfClass("PlayerGui")
+    if playerGui then
+        trackAntiLagConnection(playerGui.DescendantAdded:Connect(function(descendant)
+            if not Settings.AntiLagEnabled then
+                return
+            end
+            task.defer(function()
+                applyAntiLagToInstance(descendant)
+            end)
+        end))
+    end
 end
 
 local function runAntiLagLoop(updateStatus)
@@ -2060,18 +3063,30 @@ local function runAntiLagLoop(updateStatus)
     end
     antiLagLoopRunning = true
 
+    setupAntiLagEventHooks()
+    antiLagDirty = true
+
     while Settings.AntiLagEnabled do
         if isAtlasPaused() then
             task.wait(0.3)
             continue
         end
-        applyAntiLagPass()
-        if updateStatus then
-            updateStatus("AntiLag active")
+
+        if antiLagDirty or not antiLagOneTimeApplied then
+            applyAntiLagPass()
+            antiLagDirty = false
+            antiLagOneTimeApplied = true
+            if updateStatus then
+                updateStatus("AntiLag applied (event mode)")
+            end
         end
-        task.wait(math.clamp(Settings.AntiLagRefreshSeconds, 1, 15))
+
+        task.wait(0.4)
     end
 
+    clearAntiLagConnections()
+    antiLagDirty = false
+    antiLagOneTimeApplied = false
     antiLagLoopRunning = false
 end
 
@@ -2094,7 +3109,7 @@ local function scanTokenNames()
     end
     table.sort(names)
 
-    print("[Ichigisss] Token scan found " .. tostring(#names) .. " names")
+    print("[ICHIGER] Token scan found " .. tostring(#names) .. " names")
     for _, name in ipairs(names) do
         print(" - " .. name)
     end
@@ -2277,7 +3292,7 @@ local function captureConfigData(includeMeta)
         userId = LocalPlayer.UserId,
         placeId = game.PlaceId,
         profile = normalizeProfileName(Settings.ConfigProfile),
-        script = "Ichigisss",
+        script = "ICHIGER",
         settings = {},
         toys = {},
         theme = {},
@@ -2308,13 +3323,33 @@ local function normalizeConfigValues()
     Settings.TweenSoftness = math.clamp(tonumber(Settings.TweenSoftness) or 70, 0, 100)
     Settings.ConfigAutoSaveDelay = math.clamp(tonumber(Settings.ConfigAutoSaveDelay) or 20, 5, 120)
     Settings.SprinklerInterval = math.clamp(tonumber(Settings.SprinklerInterval) or 12, 3, 60)
+    Settings.MaterialsLoopDelay = math.clamp(tonumber(Settings.MaterialsLoopDelay) or 120, 10, 900)
     Settings.WaitBeforeConverting = math.clamp(tonumber(Settings.WaitBeforeConverting) or 0, 0, 25)
     Settings.CombatRadius = math.clamp(tonumber(Settings.CombatRadius) or 220, 40, 600)
     Settings.ViciousMinLevel = math.clamp(tonumber(Settings.ViciousMinLevel) or 1, 1, 20)
     Settings.ViciousMaxLevel = math.clamp(tonumber(Settings.ViciousMaxLevel) or 20, 1, 20)
     Settings.WindyMinLevel = math.clamp(tonumber(Settings.WindyMinLevel) or 1, 1, 20)
     Settings.WindyMaxLevel = math.clamp(tonumber(Settings.WindyMaxLevel) or 20, 1, 20)
+    Settings.WebhookIntervalMinutes = math.clamp(tonumber(Settings.WebhookIntervalMinutes) or 5, 1, 120)
+    Settings.PlanterLoopDelay = math.clamp(tonumber(Settings.PlanterLoopDelay) or 60, 8, 300)
+    Settings.RBCLoopDelay = math.clamp(tonumber(Settings.RBCLoopDelay) or 8, 3, 90)
+    Settings.AutoRejoinDelay = math.clamp(tonumber(Settings.AutoRejoinDelay) or 6, 2, 30)
     Settings.ConfigProfile = normalizeProfileName(Settings.ConfigProfile)
+    if not table.find(MOVEMENT_METHODS, Settings.MovementMethod) then
+        Settings.MovementMethod = MOVEMENT_METHODS[1]
+    end
+    if not table.find(SPRINKLER_TYPES, Settings.SprinklerType) then
+        Settings.SprinklerType = SPRINKLER_TYPES[1]
+    end
+    if not table.find(DIG_METHODS, Settings.AutoDigMethod) then
+        Settings.AutoDigMethod = DIG_METHODS[1]
+    end
+    if not table.find(PLANTER_FIELDS, Settings.PlanterAllowedField) then
+        Settings.PlanterAllowedField = PLANTER_FIELDS[1]
+    end
+    if not table.find(RARES_LIST, Settings.RaresList) then
+        Settings.RaresList = RARES_LIST[1]
+    end
     if not table.find(FACE_METHODS, Settings.FaceMethod) then
         Settings.FaceMethod = FACE_METHODS[1]
     end
@@ -2526,6 +3561,38 @@ local function loadBackupConfigFromFile(profileName)
     return true, "Backup loaded (" .. normalizedProfile .. ")"
 end
 
+local function deleteConfigFile(profileName)
+    local okFolder, msg = ensureConfigFolder()
+    if not okFolder then
+        return false, msg
+    end
+
+    if type(delfile) ~= "function" then
+        return false, "Executor has no delfile"
+    end
+
+    local path, normalizedProfile = getConfigFilePath(profileName or Settings.ConfigProfile)
+    local deletedAny = false
+    if isfile(path) then
+        local okDel = pcall(function()
+            delfile(path)
+        end)
+        deletedAny = deletedAny or okDel
+    end
+    if isfile(path .. ".bak") then
+        pcall(function()
+            delfile(path .. ".bak")
+        end)
+        deletedAny = true
+    end
+
+    configWriteCache[path] = nil
+    if deletedAny then
+        return true, "Deleted (" .. normalizedProfile .. ")"
+    end
+    return false, "No file to delete"
+end
+
 local function exportConfigToClipboard()
     if type(setclipboard) ~= "function" then
         return false, "Clipboard export not supported"
@@ -2590,9 +3657,17 @@ local initialConfigLoaded = false
 local initialConfigMessage = "No config loaded"
 if hasConfigFileApi() then
     if Settings.ConfigAutoLoad then
-        initialConfigLoaded, initialConfigMessage = loadConfigFromFile(Settings.ConfigProfile)
-        if not initialConfigLoaded then
-            initialConfigMessage = initialConfigMessage or "No config loaded"
+        local allowAutoLoad = true
+        if tostring(Settings.AutoloadForUsername or "") ~= "" then
+            allowAutoLoad = normalizeText(Settings.AutoloadForUsername) == normalizeText(LocalPlayer.Name)
+        end
+        if allowAutoLoad then
+            initialConfigLoaded, initialConfigMessage = loadConfigFromFile(Settings.ConfigProfile)
+            if not initialConfigLoaded then
+                initialConfigMessage = initialConfigMessage or "No config loaded"
+            end
+        else
+            initialConfigMessage = "Autoload username mismatch"
         end
     else
         initialConfigMessage = "Auto load disabled"
@@ -2607,9 +3682,19 @@ LocalPlayer.CharacterAdded:Connect(function()
     applyWalkSpeed()
 end)
 
-local Window = Library.CreateLib("Ichigisss | BSS Atlas Style", UITheme)
+local Window = Library.CreateLib("ICHIGER Atlas v1.0", UITheme)
 
-local MainTab = Window:NewTab("Main")
+setToyStatus = function() end
+setCombatStatus = function() end
+setQuestStatus = function() end
+setPlanterStatus = function() end
+setRbcStatus = function() end
+setWebhookStatus = function() end
+setConfigStatus = function() end
+setDebugStatus = function() end
+
+do
+local MainTab = Window:NewTab("Home")
 local MainControl = MainTab:NewSection("Home")
 local MainTravel = MainTab:NewSection("Navigation")
 local MainUI = MainTab:NewSection("UI")
@@ -2677,7 +3762,10 @@ MainUI:NewKeybind("Toggle UI", "Show/hide the UI", Enum.KeyCode.RightControl, fu
     Library:ToggleUI()
 end)
 
-local FarmTab = Window:NewTab("Farm")
+end
+
+do
+local FarmTab = Window:NewTab("Farming")
 local FarmSection = FarmTab:NewSection("Field + Hive")
 
 FarmSection:NewLabel("Farming is locked to selected field only")
@@ -2845,6 +3933,9 @@ FaceSection:NewToggle("Farm With Shift Lock", "Atlas-like shift lock flow", func
     Settings.FarmWithShiftLock = state
 end)
 
+end
+
+do
 local TokenTab = Window:NewTab("Tokens")
 local TokenMain = TokenTab:NewSection("Token Filter")
 local TokenAdvanced = TokenTab:NewSection("Precise / Pop-Star")
@@ -2905,12 +3996,17 @@ TokenAdvanced:NewToggle("Flame", "Flame tokens", function(state)
     Settings.TokenFlame = state
 end)
 
+end
+
+do
 local ToysTab = Window:NewTab("Toys")
-local ToyControl = ToysTab:NewSection("Remote + Trigger")
-local ToyList = ToysTab:NewSection("Auto Toy List")
+local ToyControl = ToysTab:NewSection("Toys")
+local ToyAtlas = ToysTab:NewSection("Atlas Categories")
+local ToyMaterials = ToysTab:NewSection("Materials + Inventory")
+local ToyList = ToysTab:NewSection("Manual Toy List")
 
 local toyStatusLabel = ToyControl:NewLabel("Toy: idle")
-local function setToyStatus(text)
+setToyStatus = function(text)
     if toyStatusLabel and toyStatusLabel.UpdateLabel then
         toyStatusLabel:UpdateLabel(text)
     end
@@ -2925,6 +4021,16 @@ ToyControl:NewToggle("Auto Use Toys", "Auto use enabled toys", function(state)
     else
         setToyStatus("Toy loop stopped")
     end
+end)
+
+ToyControl:NewToggle("Allow Gather Interrupt", "Allow toys while gathering", function(state)
+    Settings.AllowGatherInterrupt = state
+end)
+
+ToyControl:NewButton("Reset Timers", "Reset toy/category cooldown trackers", function()
+    toyUseTracker = {}
+    atlasToyTracker = {}
+    setToyStatus("Toy timers reset")
 end)
 
 ToyControl:NewSlider("Toy Loop Delay", "Seconds between toy attempts", 600, 20, function(value)
@@ -2965,20 +4071,109 @@ ToyControl:NewButton("Use Enabled Toys Once", "Run one pass over enabled toys", 
     end
 end)
 
-for _, toy in ipairs(TOYS) do
-    local key = toySettingKey(toy)
-    ToyList:NewToggle(toy.label, "Enable this toy in loop", function(state)
-        Settings[key] = state
+ToyAtlas:NewToggle("Boosters", "Auto run booster categories", function(state)
+    Settings.AutoToyBoosters = state
+end)
+ToyAtlas:NewToggle("Dispensers", "Auto run dispenser categories", function(state)
+    Settings.AutoToyDispensers = state
+end)
+ToyAtlas:NewToggle("Memory Match", "Auto memory match routines", function(state)
+    Settings.AutoToyMemoryMatch = state
+end)
+ToyAtlas:NewToggle("Wind Shrine", "Auto wind shrine routines", function(state)
+    Settings.AutoToyWindShrine = state
+end)
+ToyAtlas:NewToggle("Materials", "Auto materials routines", function(state)
+    Settings.AutoToyMaterials = state
+end)
+ToyAtlas:NewToggle("Stickers", "Auto sticker routines", function(state)
+    Settings.AutoToyStickers = state
+end)
+ToyAtlas:NewToggle("Progression", "Auto progression routines", function(state)
+    Settings.AutoToyProgression = state
+end)
+ToyAtlas:NewToggle("Beesmas", "Auto beesmas routines", function(state)
+    Settings.AutoToyBeesmas = state
+end)
+ToyAtlas:NewToggle("Gummy Beacon", "Auto gummy beacon routine", function(state)
+    Settings.AutoToyGummyBeacon = state
+end)
+ToyAtlas:NewToggle("Miscellaneous", "Auto misc toy routines", function(state)
+    Settings.AutoToyMisc = state
+end)
+ToyAtlas:NewToggle("Dapper Bear Shop", "Auto dapper shop routines", function(state)
+    Settings.AutoToyDapperBearShop = state
+end)
+ToyAtlas:NewToggle("Nectar Condenser", "Auto nectar condenser routines", function(state)
+    Settings.AutoToyNectarCondenser = state
+end)
+ToyAtlas:NewToggle("Auto Moon Amulet", "Auto moon amulet routine", function(state)
+    Settings.AutoMoonAmulet = state
+end)
+ToyAtlas:NewToggle("Auto Star Amulet", "Auto star amulet routine", function(state)
+    Settings.AutoStarAmulet = state
+end)
+ToyAtlas:NewToggle("Hive", "Auto hive-side toy routines", function(state)
+    Settings.AutoHiveTasks = state
+end)
+
+ToyMaterials:NewToggle("Auto Use Materials", "Use enabled inventory materials", function(state)
+    Settings.AutoUseMaterials = state
+end)
+
+ToyMaterials:NewSlider("Materials Delay", "Seconds between material uses", 900, 10, function(value)
+    Settings.MaterialsLoopDelay = value
+end)
+
+ToyMaterials:NewButton("Use Materials Once", "Run one pass over enabled materials", function()
+    local used = 0
+    for _, material in ipairs(MATERIALS) do
+        if Settings[materialSettingKey(material)] then
+            local ok, method = useMaterialOnce(material)
+            if ok then
+                used = used + 1
+                setToyStatus("Material: " .. material.label .. " via " .. tostring(method))
+            else
+                setToyStatus("Material fail: " .. material.label .. " (" .. tostring(method) .. ")")
+            end
+            task.wait(0.15)
+        end
+    end
+    if used == 0 then
+        setToyStatus("No materials enabled")
+    end
+end)
+
+local function createMaterialToggle(material)
+    ToyMaterials:NewToggle(material.label, "Enable material auto use", function(state)
+        Settings["Material_" .. material.key] = state
     end)
 end
 
+for _, material in ipairs(MATERIALS) do
+    createMaterialToggle(material)
+end
+
+local function createToyToggle(toy)
+    ToyList:NewToggle(toy.label, "Enable this toy in loop", function(state)
+        Settings[toySettingKey(toy)] = state
+    end)
+end
+
+for _, toy in ipairs(TOYS) do
+    createToyToggle(toy)
+end
+
+end
+
+do
 local CombatTab = Window:NewTab("Combat")
 local CombatMain = CombatTab:NewSection("Combat Core")
 local CombatMobs = CombatTab:NewSection("Monsters")
 local CombatBosses = CombatTab:NewSection("Bosses")
 
 local combatStatusLabel = CombatMain:NewLabel("Combat: idle")
-local function setCombatStatus(text)
+setCombatStatus = function(text)
     if combatStatusLabel and combatStatusLabel.UpdateLabel then
         combatStatusLabel:UpdateLabel(text)
     end
@@ -3087,6 +4282,9 @@ CombatBosses:NewSlider("Windy Max Level", "Maximum Windy level", 20, 1, function
     Settings.WindyMaxLevel = value
 end)
 
+end
+
+do
 local QuestsTab = Window:NewTab("Quests")
 local QuestMain = QuestsTab:NewSection("Quest Core")
 local QuestMainToggles = QuestsTab:NewSection("Main Quest Toggles")
@@ -3095,7 +4293,7 @@ local QuestTaskToggles = QuestsTab:NewSection("Quest Task Settings")
 local FeedSection = QuestsTab:NewSection("Feed Settings")
 
 local questStatusLabel = QuestMain:NewLabel("Quests: idle")
-local function setQuestStatus(text)
+setQuestStatus = function(text)
     if questStatusLabel and questStatusLabel.UpdateLabel then
         questStatusLabel:UpdateLabel(text)
     end
@@ -3136,6 +4334,10 @@ QuestMainToggles:NewToggle("Auto Dapper Bear", "Main Dapper Bear quests", functi
     Settings.AutoQuestDapperBear = state
 end)
 
+QuestMainToggles:NewToggle("Auto Onett", "Main Onett quests", function(state)
+    Settings.AutoQuestOnett = state
+end)
+
 QuestMainToggles:NewToggle("Auto Spirit Bear", "Main Spirit Bear quests", function(state)
     Settings.AutoQuestSpiritBear = state
 end)
@@ -3172,12 +4374,36 @@ QuestTaskToggles:NewToggle("Farm Mobs", "Quest mob tasks", function(state)
     Settings.QuestFarmMobs = state
 end)
 
+QuestTaskToggles:NewToggle("Farm Ants", "Quest ant tasks", function(state)
+    Settings.QuestFarmAnts = state
+end)
+
+QuestTaskToggles:NewToggle("Farm Rage Tokens", "Quest rage token tasks", function(state)
+    Settings.QuestFarmRageTokens = state
+end)
+
 QuestTaskToggles:NewToggle("Farm Puffshrooms", "Quest puffshroom tasks", function(state)
     Settings.QuestFarmPuffshrooms = state
 end)
 
 QuestTaskToggles:NewToggle("Do Duped Tokens", "Quest duplicated token tasks", function(state)
     Settings.QuestDoDupedTokens = state
+end)
+
+QuestTaskToggles:NewToggle("Do Wind Shrine", "Quest wind shrine tasks", function(state)
+    Settings.QuestDoWindShrine = state
+end)
+
+QuestTaskToggles:NewToggle("Do Memory Match", "Quest memory match tasks", function(state)
+    Settings.QuestDoMemoryMatch = state
+end)
+
+QuestTaskToggles:NewToggle("Share Jelly Beans", "Quest jelly bean tasks", function(state)
+    Settings.QuestShareJellyBeans = state
+end)
+
+QuestTaskToggles:NewToggle("Craft Items", "Quest crafting tasks", function(state)
+    Settings.QuestCraftItems = state
 end)
 
 QuestTaskToggles:NewToggle("Use Toys", "Allow toy usage in quests", function(state)
@@ -3200,29 +4426,238 @@ FeedSection:NewToggle("Use Royal Jelly", "Auto use royal jelly", function(state)
     Settings.UseRoyalJelly = state
 end)
 
-local ConfigTab = Window:NewTab("Config")
-local SpeedSection = ConfigTab:NewSection("Speed")
-local StorageSection = ConfigTab:NewSection("JSON Profile")
+end
 
-SpeedSection:NewSlider("WalkSpeed", "Player walk speed (40-120)", 120, 40, function(value)
+do
+local PlantersTab = Window:NewTab("Planters")
+local PlanterMain = PlantersTab:NewSection("Planter Settings")
+
+local planterStatusLabel = PlanterMain:NewLabel("Planters: idle")
+setPlanterStatus = function(text)
+    if planterStatusLabel and planterStatusLabel.UpdateLabel then
+        planterStatusLabel:UpdateLabel(text)
+    end
+end
+
+PlanterMain:NewToggle("Farm Planters", "Enable planter automation", function(state)
+    Settings.EnablePlanters = state
+    if state then
+        task.spawn(function()
+            runPlanterLoop(setPlanterStatus)
+        end)
+    else
+        setPlanterStatus("Planters: stopped")
+    end
+end)
+
+PlanterMain:NewToggle("Auto Plant Planters", "Plant planters automatically", function(state)
+    Settings.PlanterAutoPlant = state
+end)
+
+PlanterMain:NewToggle("Auto Harvest Planters", "Harvest completed planters", function(state)
+    Settings.PlanterAutoHarvest = state
+end)
+
+PlanterMain:NewToggle("Plant During Day Only", "Only run at daytime", function(state)
+    Settings.PlanterDuringDayOnly = state
+    if state then
+        Settings.PlanterDuringNightOnly = false
+    end
+end)
+
+PlanterMain:NewToggle("Plant During Night Only", "Only run at night", function(state)
+    Settings.PlanterDuringNightOnly = state
+    if state then
+        Settings.PlanterDuringDayOnly = false
+    end
+end)
+
+PlanterMain:NewDropdown("Allowed Fields", "Field for planter logic", PLANTER_FIELDS, function(value)
+    Settings.PlanterAllowedField = value
+end)
+
+PlanterMain:NewSlider("Planter Loop Delay", "Seconds between planter checks", 300, 8, function(value)
+    Settings.PlanterLoopDelay = value
+end)
+
+PlanterMain:NewToggle("Trigger Fallback", "If remotes fail, use prompt/click/touch", function(state)
+    Settings.PlanterTriggerFallback = state
+end)
+
+PlanterMain:NewButton("Plant Now", "Force one planter plant attempt", function()
+    local targetField = safePlantFieldName()
+    local ok, method = tryPlanterAction("Plant", targetField)
+    if ok then
+        setPlanterStatus("Planters: planted via " .. tostring(method))
+    else
+        setPlanterStatus("Planters: plant failed (" .. tostring(method) .. ")")
+    end
+end)
+
+PlanterMain:NewButton("Harvest Now", "Force one planter harvest attempt", function()
+    local targetField = safePlantFieldName()
+    local ok, method = tryPlanterAction("Harvest", targetField)
+    if ok then
+        setPlanterStatus("Planters: harvested via " .. tostring(method))
+    else
+        setPlanterStatus("Planters: harvest failed (" .. tostring(method) .. ")")
+    end
+end)
+
+end
+
+do
+local WebhookTab = Window:NewTab("Webhook")
+local WebhookMain = WebhookTab:NewSection("Webhook")
+local WebhookSettings = WebhookTab:NewSection("Webhook Settings")
+local GraphSettings = WebhookTab:NewSection("Graph Settings")
+local DashboardSettings = WebhookTab:NewSection("Dashboard Settings")
+
+local webhookStatusLabel = WebhookMain:NewLabel("Webhook: idle")
+setWebhookStatus = function(text)
+    if webhookStatusLabel and webhookStatusLabel.UpdateLabel then
+        webhookStatusLabel:UpdateLabel(text)
+    end
+end
+
+WebhookMain:NewToggle("Enable Webhook", "Send periodic Discord updates", function(state)
+    Settings.EnableWebhook = state
+    if state then
+        if not webhookLoopRunning then
+            task.spawn(function()
+                runWebhookLoop(setWebhookStatus)
+            end)
+        end
+    else
+        setWebhookStatus("Webhook: disabled")
+    end
+end)
+
+WebhookMain:NewTextBox("Webhook URL", "https://discord.com/api/webhooks/...", function(value)
+    Settings.WebhookUrl = tostring(value or "")
+end)
+
+WebhookMain:NewSlider("Webhook Interval (minutes)", "Send interval", 120, 1, function(value)
+    Settings.WebhookIntervalMinutes = value
+end)
+
+WebhookMain:NewButton("Send Test", "Send test to main webhook", function()
+    local ok, msg = sendWebhookSnapshot("Manual test", false)
+    setWebhookStatus(ok and "Webhook: test sent" or ("Webhook: " .. tostring(msg)))
+end)
+
+WebhookSettings:NewToggle("Send Balloon Pollen", "Include balloon info", function(state)
+    Settings.WebhookSendBalloonPollen = state
+end)
+WebhookSettings:NewToggle("Send Nectars", "Include nectar info", function(state)
+    Settings.WebhookSendNectars = state
+end)
+WebhookSettings:NewToggle("Send Planters", "Include planter info", function(state)
+    Settings.WebhookSendPlanters = state
+end)
+WebhookSettings:NewToggle("Send Items", "Include item usage info", function(state)
+    Settings.WebhookSendItems = state
+end)
+WebhookSettings:NewToggle("Send Console", "Include console snippets", function(state)
+    Settings.WebhookSendConsole = state
+end)
+WebhookSettings:NewToggle("Send Stickers", "Include sticker info", function(state)
+    Settings.WebhookSendStickers = state
+end)
+WebhookSettings:NewToggle("Send Beequips", "Include beequip info", function(state)
+    Settings.WebhookSendBeequips = state
+end)
+WebhookSettings:NewToggle("Send Quest Done", "Send quest completion", function(state)
+    Settings.WebhookSendQuestDone = state
+end)
+WebhookSettings:NewToggle("Send Digital Bee Drives", "Include drive info", function(state)
+    Settings.WebhookSendDigitalBeeDrives = state
+end)
+WebhookSettings:NewToggle("Send Dapper Bear Shop", "Include dapper shop info", function(state)
+    Settings.WebhookSendDapperBearShop = state
+end)
+WebhookSettings:NewToggle("Send Disconnect", "Send message before auto rejoin", function(state)
+    Settings.WebhookSendDisconnect = state
+end)
+
+GraphSettings:NewToggle("Enabled", "Enable graph webhook stream", function(state)
+    Settings.GraphEnabled = state
+end)
+GraphSettings:NewToggle("Natro Macro Branding", "Use natro-like title", function(state)
+    Settings.GraphUseBranding = state
+end)
+GraphSettings:NewTextBox("Graph Webhook URL", "Secondary webhook URL", function(value)
+    Settings.GraphWebhookUrl = tostring(value or "")
+end)
+GraphSettings:NewButton("Send Test (Graph)", "Send test graph embed", function()
+    local ok, msg = sendWebhookSnapshot("Manual graph test", true)
+    setWebhookStatus(ok and "Webhook: graph test sent" or ("Webhook: " .. tostring(msg)))
+end)
+
+DashboardSettings:NewToggle("Dashboard Enabled", "Store dashboard-like stream state", function(state)
+    Settings.DashboardEnabled = state
+end)
+
+end
+
+do
+local ConfigTab = Window:NewTab("Config")
+local SpeedSection = ConfigTab:NewSection("Config")
+local MoveSection = ConfigTab:NewSection("Movement")
+local StorageSection = ConfigTab:NewSection("Settings")
+
+SpeedSection:NewToggle("Use Remotes", "Prefer remote-based actions", function(state)
+    Settings.UseRemotes = state
+end)
+
+SpeedSection:NewDropdown("Movement", "Tween / WalkTo / Hybrid", MOVEMENT_METHODS, function(value)
+    Settings.MovementMethod = value
+end)
+
+SpeedSection:NewDropdown("Sprinkler", "Preferred sprinkler type", SPRINKLER_TYPES, function(value)
+    Settings.SprinklerType = value
+end)
+
+SpeedSection:NewDropdown("Auto Dig Method", "Remote / ActivateTool / Both", DIG_METHODS, function(value)
+    Settings.AutoDigMethod = value
+end)
+
+SpeedSection:NewButton("Copy Discord", "Copy your webhook url quickly", function()
+    if type(setclipboard) == "function" then
+        pcall(function()
+            setclipboard(tostring(Settings.WebhookUrl or ""))
+        end)
+    end
+end)
+
+MoveSection:NewToggle("Enable Walk Speed", "Apply custom walk speed", function(state)
+    Settings.EnableWalkSpeed = state
+    applyWalkSpeed()
+end)
+
+MoveSection:NewToggle("Dynamic Walk Speed", "Adjust speed by bag state", function(state)
+    Settings.DynamicWalkSpeed = state
+end)
+
+MoveSection:NewSlider("WalkSpeed", "Player walk speed (40-120)", 120, 40, function(value)
     Settings.PlayerSpeed = value
     applyWalkSpeed()
 end)
 
-SpeedSection:NewSlider("TweenSpeed", "Tween speed (40-120)", 120, 40, function(value)
+MoveSection:NewSlider("TweenSpeed", "Tween speed (40-120)", 120, 40, function(value)
     Settings.TweenSpeed = value
 end)
 
-SpeedSection:NewSlider("TweenSoftness", "Softer tween feel (0-100)", 100, 0, function(value)
+MoveSection:NewSlider("TweenSoftness", "Softer tween feel (0-100)", 100, 0, function(value)
     Settings.TweenSoftness = value
 end)
 
-SpeedSection:NewToggle("No Safe Mode", "Aggressive convert/tap spam", function(state)
+MoveSection:NewToggle("No Safe Mode", "Aggressive convert/tap spam", function(state)
     Settings.NoSafeMode = state
 end)
 
 local configStatusLabel = StorageSection:NewLabel("Config: " .. tostring(initialConfigMessage))
-local function setConfigStatus(text)
+setConfigStatus = function(text)
     if configStatusLabel and configStatusLabel.UpdateLabel then
         configStatusLabel:UpdateLabel("Config: " .. text)
     end
@@ -3242,6 +4677,12 @@ local function refreshConfigProfileLabels()
     end
 end
 
+StorageSection:NewDropdown("Selected Config", "Quick preset profile names", CONFIG_PROFILE_PRESETS, function(value)
+    Settings.ConfigProfile = normalizeProfileName(value)
+    refreshConfigProfileLabels()
+    setConfigStatus("selected profile")
+end)
+
 StorageSection:NewTextBox("Profile Name", "Use letters/numbers/_/-", function(value)
     Settings.ConfigProfile = normalizeProfileName(value)
     pcall(function()
@@ -3249,6 +4690,11 @@ StorageSection:NewTextBox("Profile Name", "Use letters/numbers/_/-", function(va
     end)
     refreshConfigProfileLabels()
     setConfigStatus("profile set")
+end)
+
+StorageSection:NewTextBox("Autoload For Username", "Optional username tag", function(value)
+    Settings.AutoloadForUsername = tostring(value or "")
+    setConfigStatus("autoload username set")
 end)
 
 StorageSection:NewToggle("Auto Save", "Save config automatically", function(state)
@@ -3269,6 +4715,16 @@ end)
 
 StorageSection:NewSlider("Auto Save Delay", "Seconds between auto saves", 120, 5, function(value)
     Settings.ConfigAutoSaveDelay = value
+end)
+
+StorageSection:NewButton("Create Config", "Create/save file for current profile", function()
+    local ok, msg = saveConfigToFile(Settings.ConfigProfile, true)
+    if ok then
+        refreshConfigProfileLabels()
+        setConfigStatus("created " .. tostring(Settings.ConfigProfile))
+    else
+        setConfigStatus(msg)
+    end
 end)
 
 StorageSection:NewButton("Save Config", "Save your profile to JSON", function()
@@ -3313,6 +4769,15 @@ StorageSection:NewButton("Load Backup", "Load .bak for current profile", functio
     end
 end)
 
+StorageSection:NewButton("Delete Config", "Delete current profile + backup", function()
+    local ok, msg = deleteConfigFile(Settings.ConfigProfile)
+    if ok then
+        setConfigStatus(msg)
+    else
+        setConfigStatus(msg)
+    end
+end)
+
 StorageSection:NewButton("Export JSON", "Copy active profile JSON to clipboard", function()
     local ok, msg = exportConfigToClipboard()
     if ok then
@@ -3338,6 +4803,9 @@ StorageSection:NewButton("Import JSON", "Load JSON from clipboard", function()
     end
 end)
 
+end
+
+do
 local ThemeTab = Window:NewTab("Theme")
 local ThemeSection = ThemeTab:NewSection("Customize Colors")
 
@@ -3394,18 +4862,63 @@ ThemeSection:NewButton("Preset: Purple Black", "Apply purple + black style", fun
     end
 end)
 
+end
+
+do
 local DebugTab = Window:NewTab("Debug")
-local DebugPerf = DebugTab:NewSection("Anti-Lag")
+local DebugMain = DebugTab:NewSection("Debug")
+local DebugDetected = DebugTab:NewSection("Detected Features")
+local DebugPerfCore = DebugTab:NewSection("Anti Lag Core")
+local DebugPerfVisual = DebugTab:NewSection("Visual Filters")
+local DebugPerfWorld = DebugTab:NewSection("World / Render")
 local DebugTools = DebugTab:NewSection("Tools")
 
-local debugStatusLabel = DebugPerf:NewLabel("Debug: idle")
-local function setDebugStatus(text)
+local debugStatusLabel = DebugMain:NewLabel("Debug: idle")
+setDebugStatus = function(text)
     if debugStatusLabel and debugStatusLabel.UpdateLabel then
         debugStatusLabel:UpdateLabel(text)
     end
 end
 
-DebugPerf:NewToggle("Anti Lag", "Enable/disable anti lag", function(state)
+DebugMain:NewToggle("Anonymous Mode", "Hide display identity in logs", function(state)
+    Settings.AnonymousMode = state
+end)
+DebugMain:NewToggle("Farm Multiple Fields", "Allow multi-field selection logic", function(state)
+    Settings.FarmMultipleFields = state
+end)
+DebugMain:NewToggle("Mobile Toggle Button", "Enable mobile helper toggle", function(state)
+    Settings.MobileToggleButton = state
+end)
+DebugMain:NewToggle("Show Atlas Console", "Enable verbose console prints", function(state)
+    Settings.ShowAtlasConsole = state
+end)
+DebugMain:NewToggle("Auto Rejoin", "Rejoin when disconnect prompt appears", function(state)
+    Settings.AutoRejoin = state
+end)
+DebugMain:NewSlider("Auto Rejoin Delay", "Seconds between rejoin attempts", 30, 2, function(value)
+    Settings.AutoRejoinDelay = value
+end)
+
+DebugDetected:NewLabel("Use this at your own risk")
+DebugDetected:NewToggle("Run without autofarm", "Allow background routines without autofarm", function(state)
+    Settings.RunWithoutAutofarm = state
+end)
+DebugDetected:NewToggle("Fast Shower Tween", "Enable faster shower movement", function(state)
+    Settings.FastShowerTween = state
+end)
+DebugDetected:NewToggle("Fast Coconut Tween", "Enable faster coconut movement", function(state)
+    Settings.FastCoconutTween = state
+end)
+DebugDetected:NewToggle("Fast Tween To Rares", "Enable faster rare movement", function(state)
+    Settings.FastTweenToRares = state
+end)
+DebugDetected:NewDropdown("Rares List", "Select rare priority profile", RARES_LIST, function(value)
+    Settings.RaresList = value
+end)
+
+DebugPerfCore:NewLabel("Event mode: one full pass + new objects")
+
+DebugPerfCore:NewToggle("Anti Lag", "Enable/disable anti lag", function(state)
     Settings.AntiLagEnabled = state
     if state then
         task.spawn(function()
@@ -3416,40 +4929,96 @@ DebugPerf:NewToggle("Anti Lag", "Enable/disable anti lag", function(state)
         setDebugStatus("AntiLag restored")
     end
 end)
-
-DebugPerf:NewToggle("Disable Particles", "Turn off particles/trails/beams", function(state)
+DebugPerfCore:NewToggle("Hide Particles", "Turn off particles/trails/beams", function(state)
     Settings.AntiLagParticles = state
+    requestAntiLagReapply()
 end)
-
-DebugPerf:NewToggle("Hide Textures", "Hide decals and textures", function(state)
+DebugPerfCore:NewToggle("Destroy Textures", "Hide decals and textures", function(state)
     Settings.AntiLagTextures = state
+    requestAntiLagReapply()
 end)
-
-DebugPerf:NewToggle("Disable Shadows", "Disable part cast shadows", function(state)
+DebugPerfCore:NewToggle("Disable Shadows", "Disable part cast shadows", function(state)
     Settings.AntiLagShadows = state
+    requestAntiLagReapply()
 end)
-
-DebugPerf:NewToggle("Low Lighting", "Lower lighting effects", function(state)
+DebugPerfCore:NewToggle("Low Lighting", "Lower lighting effects", function(state)
     Settings.AntiLagLighting = state
+    requestAntiLagReapply()
 end)
 
-DebugPerf:NewSlider("Refresh Seconds", "Anti-lag refresh interval", 15, 1, function(value)
-    Settings.AntiLagRefreshSeconds = value
+DebugPerfVisual:NewToggle("Hide Tokens", "Hide token parts", function(state)
+    Settings.HideTokens = state
+    requestAntiLagReapply()
 end)
+DebugPerfVisual:NewToggle("Hide Precise Targets", "Hide precise-related visuals", function(state)
+    Settings.HidePreciseTargets = state
+    requestAntiLagReapply()
+end)
+DebugPerfVisual:NewToggle("Hide Duped Tokens", "Hide duplicated token visuals", function(state)
+    Settings.HideDupedTokens = state
+    requestAntiLagReapply()
+end)
+DebugPerfVisual:NewToggle("Hide Marks", "Hide mark/target visuals", function(state)
+    Settings.HideMarks = state
+    requestAntiLagReapply()
+end)
+DebugPerfVisual:NewToggle("Hide Bees", "Hide bee models", function(state)
+    Settings.HideBees = state
+    requestAntiLagReapply()
+end)
+DebugPerfVisual:NewToggle("Hide Flowers", "Hide flower visuals", function(state)
+    Settings.HideFlowers = state
+    requestAntiLagReapply()
+end)
+DebugPerfVisual:NewToggle("Destroy Balloons", "Hide balloon visuals/collision", function(state)
+    Settings.DestroyBalloons = state
+    requestAntiLagReapply()
+end)
+DebugPerfVisual:NewToggle("Destroy Decorations", "Hide decoration meshes/parts", function(state)
+    Settings.DestroyDecorations = state
+    requestAntiLagReapply()
+end)
+
+DebugPerfWorld:NewToggle("Disable 3D Rendering", "Disable world rendering for FPS", function(state)
+    Settings.Disable3DRendering = state
+    requestAntiLagReapply()
+end)
+DebugPerfWorld:NewToggle("Hide Other Players", "Hide other player characters", function(state)
+    Settings.HideOtherPlayers = state
+    requestAntiLagReapply()
+end)
+DebugPerfWorld:NewToggle("Hide BSS UI", "Disable most game UIs", function(state)
+    Settings.HideBssUI = state
+    requestAntiLagReapply()
+end)
+
+local function rejoinNow(reason)
+    if Settings.EnableWebhook and Settings.WebhookSendDisconnect then
+        pcall(function()
+            sendWebhookSnapshot(reason or "Manual rejoin", false)
+        end)
+    end
+    pcall(function()
+        TeleportService:Teleport(game.PlaceId, LocalPlayer)
+    end)
+end
 
 DebugTools:NewButton("Apply Anti Lag Now", "Run anti-lag pass instantly", function()
     applyAntiLagPass()
+    antiLagOneTimeApplied = true
+    antiLagDirty = false
     setDebugStatus("AntiLag pass applied")
 end)
-
 DebugTools:NewButton("Restore Visuals", "Restore visual changes", function()
     Settings.AntiLagEnabled = false
     restoreAntiLag()
     setDebugStatus("Visuals restored")
 end)
+DebugTools:NewButton("Rejoin Now", "Teleport back to this server type", function()
+    rejoinNow("Manual rejoin")
+end)
 
 local tokenScanLabel = DebugTools:NewLabel("Token scan: not run")
-
 DebugTools:NewButton("Scan Token Names", "List token names to console", function()
     local names = scanTokenNames()
     local text = "Token scan: " .. tostring(#names) .. " names"
@@ -3458,6 +5027,8 @@ DebugTools:NewButton("Scan Token Names", "List token names to console", function
     end
     setDebugStatus(text)
 end)
+
+end
 
 task.spawn(function()
     runSupportLoop()
@@ -3476,6 +5047,12 @@ task.spawn(function()
     end
     if Settings.AutoQuest then
         runQuestLoop(setQuestStatus)
+    end
+    if Settings.EnablePlanters then
+        runPlanterLoop(setPlanterStatus)
+    end
+    if Settings.EnableWebhook then
+        runWebhookLoop(setWebhookStatus)
     end
     if Settings.AntiLagEnabled then
         runAntiLagLoop(setDebugStatus)
