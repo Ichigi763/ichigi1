@@ -1,5 +1,5 @@
--- ICHIGER | BSS Atlas-Style Macro
--- Custom script build for Berg (Atlas-inspired)
+-- ICHIGER | BSS Macro
+-- Hand-tuned build for Berg
 local LIBRARY_URL = "https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"
 
 local function loadUiLibrary()
@@ -461,7 +461,7 @@ tokenNearestCache = {
     pos = nil,
     rootPos = nil,
 }
-TOKEN_NEAREST_CACHE_WINDOW = 0.12
+TOKEN_NEAREST_CACHE_WINDOW = 0.05
 local VirtualInputManager = nil
 local VirtualUser = nil
 pcall(function()
@@ -622,7 +622,16 @@ local function moveToPosition(targetPos, stopDistance, timeout, cancelFn)
         )
         currentTween = tween
         tween:Play()
-        tween.Completed:Wait()
+        while tween.PlaybackState == Enum.PlaybackState.Playing do
+            if cancelFn and cancelFn() then
+                tween:Cancel()
+                if currentTween == tween then
+                    currentTween = nil
+                end
+                return false
+            end
+            task.wait(0.03)
+        end
         if currentTween == tween then
             currentTween = nil
         end
@@ -638,6 +647,55 @@ local function moveToPosition(targetPos, stopDistance, timeout, cancelFn)
         return true
     end
     return tweenMove()
+end
+
+local function moveToToken(targetPos, cancelFn)
+    local root = select(1, getRootAndHumanoid())
+    if not root then
+        return false
+    end
+
+    local y = root.Position.Y
+    local finalPos = Vector3.new(targetPos.X, y, targetPos.Z)
+    local dist = (root.Position - finalPos).Magnitude
+    if dist <= 2.2 then
+        return true
+    end
+
+    local method = tostring(Settings.MovementMethod or "Tween")
+    if method == "WalkTo" then
+        return walkTo(finalPos, 2.6, 0.8, cancelFn)
+    end
+
+    local chaseSpeed = math.clamp((tonumber(Settings.TweenSpeed) or 80) * 1.55, 70, 180)
+    local duration = math.clamp(dist / chaseSpeed, 0.04, 0.42)
+
+    stopTween()
+    local rotationOnly = root.CFrame - root.Position
+    local tweenGoal = CFrame.new(finalPos) * rotationOnly
+    local tween = TweenService:Create(
+        root,
+        TweenInfo.new(duration, Enum.EasingStyle.Linear, Enum.EasingDirection.Out),
+        { CFrame = tweenGoal }
+    )
+    currentTween = tween
+    tween:Play()
+
+    while tween.PlaybackState == Enum.PlaybackState.Playing do
+        if cancelFn and cancelFn() then
+            tween:Cancel()
+            if currentTween == tween then
+                currentTween = nil
+            end
+            return false
+        end
+        task.wait(0.02)
+    end
+
+    if currentTween == tween then
+        currentTween = nil
+    end
+    return true
 end
 
 local function getActiveTweenSpeed()
@@ -2032,7 +2090,7 @@ local function sendDiscordWebhook(url, title, description, color)
                 description = description,
                 color = color or 3447003,
                 timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ"),
-                footer = { text = "ICHIGER Atlas-style" },
+                footer = { text = "ICHIGER macro" },
             },
         },
     }
@@ -2335,8 +2393,18 @@ local function runAutoFarm()
                 if root then
                     walkTarget = Vector3.new(tokenPos.X, root.Position.Y, tokenPos.Z)
                 end
-                moveToPosition(walkTarget, 4, 2.6, function()
-                    return not Settings.AutoFarm
+                local tokenAnchor = tokenPos
+                moveToToken(walkTarget, function()
+                    if not Settings.AutoFarm or isAtlasPaused() then
+                        return true
+                    end
+
+                    local currentToken = getNearestTokenInField(Settings.FieldName)
+                    if not currentToken then
+                        return true
+                    end
+
+                    return (currentToken - tokenAnchor).Magnitude > 6
                 end)
             else
                 local walkPos = getRandomPointInField(Settings.FieldName)
@@ -3682,7 +3750,7 @@ LocalPlayer.CharacterAdded:Connect(function()
     applyWalkSpeed()
 end)
 
-local Window = Library.CreateLib("ICHIGER Atlas v1.0", UITheme)
+local Window = Library.CreateLib("ICHIGER v1.0", UITheme)
 
 setToyStatus = function() end
 setCombatStatus = function() end
@@ -3699,9 +3767,9 @@ local MainControl = MainTab:NewSection("Home")
 local MainTravel = MainTab:NewSection("Navigation")
 local MainUI = MainTab:NewSection("UI")
 
-MainControl:NewLabel("Atlas-style control: ON stop, OFF run")
+MainControl:NewLabel("Stop Macro = ON, everything pauses")
 
-MainControl:NewToggle("Stop Atlas", "ON = fully stop all loops", function(state)
+MainControl:NewToggle("Stop Macro", "Pause all loops immediately", function(state)
     Settings.ScriptStopped = state
     if state then
         stopMovement()
@@ -3774,7 +3842,7 @@ FarmSection:NewDropdown("Field", "Select farming field", FIELDS, function(value)
     Settings.FieldName = value
 end)
 
-FarmSection:NewToggle("Autofarm", "Atlas farming toggle", function(state)
+FarmSection:NewToggle("Autofarm", "Main farming loop", function(state)
     Settings.AutoFarm = state
     if state then
         task.spawn(runAutoFarm)
@@ -3809,16 +3877,16 @@ local FarmAdvanced = FarmTab:NewSection("Farm Settings")
 local ConvertSection = FarmTab:NewSection("Convert Settings")
 local FaceSection = FarmTab:NewSection("Face Settings")
 
-FarmAdvanced:NewToggle("Auto Pop Star", "Atlas-inspired Pop Star behavior", function(state)
+FarmAdvanced:NewToggle("Auto Pop Star", "Prioritize Pop Star logic", function(state)
     Settings.AutoPopStar = state
     Settings.TokenPopStar = state
 end)
 
-FarmAdvanced:NewToggle("Auto Scorching Star", "Atlas-inspired Scorching support", function(state)
+FarmAdvanced:NewToggle("Auto Scorching Star", "Support Scorching Star", function(state)
     Settings.AutoScorchingStar = state
 end)
 
-FarmAdvanced:NewToggle("Auto Gummy Star", "Atlas-inspired Gummy support", function(state)
+FarmAdvanced:NewToggle("Auto Gummy Star", "Support Gummy Star", function(state)
     Settings.AutoGummyStar = state
 end)
 
@@ -3929,7 +3997,7 @@ FaceSection:NewToggle("Face Bubbles", "Face bubbles/tokens while farming", funct
     Settings.FaceBubbles = state
 end)
 
-FaceSection:NewToggle("Farm With Shift Lock", "Atlas-like shift lock flow", function(state)
+FaceSection:NewToggle("Farm With Shift Lock", "Use shift-lock style movement", function(state)
     Settings.FarmWithShiftLock = state
 end)
 
@@ -4001,7 +4069,7 @@ end
 do
 local ToysTab = Window:NewTab("Toys")
 local ToyControl = ToysTab:NewSection("Toys")
-local ToyAtlas = ToysTab:NewSection("Atlas Categories")
+local ToyAtlas = ToysTab:NewSection("Auto Categories")
 local ToyMaterials = ToysTab:NewSection("Materials + Inventory")
 local ToyList = ToysTab:NewSection("Manual Toy List")
 
@@ -4071,49 +4139,49 @@ ToyControl:NewButton("Use Enabled Toys Once", "Run one pass over enabled toys", 
     end
 end)
 
-ToyAtlas:NewToggle("Boosters", "Auto run booster categories", function(state)
+ToyAtlas:NewToggle("Boosters", "Auto boosters", function(state)
     Settings.AutoToyBoosters = state
 end)
-ToyAtlas:NewToggle("Dispensers", "Auto run dispenser categories", function(state)
+ToyAtlas:NewToggle("Dispensers", "Auto dispensers", function(state)
     Settings.AutoToyDispensers = state
 end)
-ToyAtlas:NewToggle("Memory Match", "Auto memory match routines", function(state)
+ToyAtlas:NewToggle("Memory Match", "Auto memory match", function(state)
     Settings.AutoToyMemoryMatch = state
 end)
-ToyAtlas:NewToggle("Wind Shrine", "Auto wind shrine routines", function(state)
+ToyAtlas:NewToggle("Wind Shrine", "Auto wind shrine", function(state)
     Settings.AutoToyWindShrine = state
 end)
-ToyAtlas:NewToggle("Materials", "Auto materials routines", function(state)
+ToyAtlas:NewToggle("Materials", "Auto materials", function(state)
     Settings.AutoToyMaterials = state
 end)
-ToyAtlas:NewToggle("Stickers", "Auto sticker routines", function(state)
+ToyAtlas:NewToggle("Stickers", "Auto stickers", function(state)
     Settings.AutoToyStickers = state
 end)
-ToyAtlas:NewToggle("Progression", "Auto progression routines", function(state)
+ToyAtlas:NewToggle("Progression", "Auto progression", function(state)
     Settings.AutoToyProgression = state
 end)
-ToyAtlas:NewToggle("Beesmas", "Auto beesmas routines", function(state)
+ToyAtlas:NewToggle("Beesmas", "Auto Beesmas actions", function(state)
     Settings.AutoToyBeesmas = state
 end)
-ToyAtlas:NewToggle("Gummy Beacon", "Auto gummy beacon routine", function(state)
+ToyAtlas:NewToggle("Gummy Beacon", "Auto gummy beacon", function(state)
     Settings.AutoToyGummyBeacon = state
 end)
-ToyAtlas:NewToggle("Miscellaneous", "Auto misc toy routines", function(state)
+ToyAtlas:NewToggle("Miscellaneous", "Auto misc actions", function(state)
     Settings.AutoToyMisc = state
 end)
-ToyAtlas:NewToggle("Dapper Bear Shop", "Auto dapper shop routines", function(state)
+ToyAtlas:NewToggle("Dapper Bear Shop", "Auto Dapper shop", function(state)
     Settings.AutoToyDapperBearShop = state
 end)
-ToyAtlas:NewToggle("Nectar Condenser", "Auto nectar condenser routines", function(state)
+ToyAtlas:NewToggle("Nectar Condenser", "Auto nectar condenser", function(state)
     Settings.AutoToyNectarCondenser = state
 end)
-ToyAtlas:NewToggle("Auto Moon Amulet", "Auto moon amulet routine", function(state)
+ToyAtlas:NewToggle("Auto Moon Amulet", "Auto moon amulet", function(state)
     Settings.AutoMoonAmulet = state
 end)
-ToyAtlas:NewToggle("Auto Star Amulet", "Auto star amulet routine", function(state)
+ToyAtlas:NewToggle("Auto Star Amulet", "Auto star amulet", function(state)
     Settings.AutoStarAmulet = state
 end)
-ToyAtlas:NewToggle("Hive", "Auto hive-side toy routines", function(state)
+ToyAtlas:NewToggle("Hive", "Auto hive-side actions", function(state)
     Settings.AutoHiveTasks = state
 end)
 
@@ -4179,7 +4247,7 @@ setCombatStatus = function(text)
     end
 end
 
-CombatMain:NewToggle("Enable Combat", "Atlas-style auto combat loop", function(state)
+CombatMain:NewToggle("Enable Combat", "Auto combat loop", function(state)
     Settings.EnableCombat = state
     if state then
         task.spawn(function()
@@ -4299,7 +4367,7 @@ setQuestStatus = function(text)
     end
 end
 
-QuestMain:NewToggle("Auto Quest", "Run atlas-inspired quest loop", function(state)
+QuestMain:NewToggle("Auto Quest", "Run quest loop", function(state)
     Settings.AutoQuest = state
     if state then
         task.spawn(function()
@@ -4410,11 +4478,11 @@ QuestTaskToggles:NewToggle("Use Toys", "Allow toy usage in quests", function(sta
     Settings.QuestUseToys = state
 end)
 
-FeedSection:NewToggle("Feed Bees", "Atlas feed bees task", function(state)
+FeedSection:NewToggle("Feed Bees", "Feed bees automatically", function(state)
     Settings.FeedBees = state
 end)
 
-FeedSection:NewToggle("Level Up Bees", "Atlas level up bees task", function(state)
+FeedSection:NewToggle("Level Up Bees", "Level bees automatically", function(state)
     Settings.LevelUpBees = state
 end)
 
@@ -4889,7 +4957,7 @@ end)
 DebugMain:NewToggle("Mobile Toggle Button", "Enable mobile helper toggle", function(state)
     Settings.MobileToggleButton = state
 end)
-DebugMain:NewToggle("Show Atlas Console", "Enable verbose console prints", function(state)
+DebugMain:NewToggle("Show Console", "Enable verbose console logs", function(state)
     Settings.ShowAtlasConsole = state
 end)
 DebugMain:NewToggle("Auto Rejoin", "Rejoin when disconnect prompt appears", function(state)
