@@ -412,6 +412,29 @@ local TOKEN_PATTERNS = {
     Flame = { "flame" },
 }
 
+local TOKEN_GUIDE_LIST = {
+    { icon = "[H]", name = "Honey Token" },
+    { icon = "[P]", name = "Pollen Token" },
+    { icon = "[+]", name = "Focus Token" },
+    { icon = "[>]", name = "Haste Token" },
+    { icon = "[M]", name = "Melody Token" },
+    { icon = "[A]", name = "Ability Token" },
+    { icon = "[!]", name = "Rage Token" },
+    { icon = "[!]", name = "Stinger Token" },
+    { icon = "[$]", name = "Ticket Token" },
+    { icon = "[T]", name = "Treat Token" },
+    { icon = "[X]", name = "Mark Token" },
+    { icon = "[X]", name = "Target Token" },
+    { icon = "[*]", name = "Pop Star Token" },
+    { icon = "[*]", name = "Guiding Star Token" },
+    { icon = "[*]", name = "Star Saw Token" },
+    { icon = "[L]", name = "Link Token" },
+    { icon = "[B]", name = "Bomb Token" },
+    { icon = "[U]", name = "Bubble Token" },
+    { icon = "[F]", name = "Flame Token" },
+    { icon = "[Q]", name = "Precise Token" },
+}
+
 local EFFECT_CLASSES = {
     ParticleEmitter = true,
     Trail = true,
@@ -892,6 +915,15 @@ local function isTokenAllowed(tokenName)
     if Settings.TokenBubble and tokenMatches(tokenName, TOKEN_PATTERNS.Bubble) then return true end
     if Settings.TokenFlame and tokenMatches(tokenName, TOKEN_PATTERNS.Flame) then return true end
 
+    return false
+end
+
+local function isTokenSupportedByMacroName(tokenName)
+    for _, patterns in pairs(TOKEN_PATTERNS) do
+        if tokenMatches(tokenName, patterns) then
+            return true
+        end
+    end
     return false
 end
 
@@ -3135,7 +3167,7 @@ local function runAntiLagLoop(updateStatus)
     antiLagLoopRunning = false
 end
 
-local function scanTokenNames()
+local function collectTokenNames()
     local collectibles = getCollectiblesFolder()
     local map = {}
 
@@ -3153,6 +3185,11 @@ local function scanTokenNames()
         table.insert(names, name)
     end
     table.sort(names)
+    return names
+end
+
+local function scanTokenNames()
+    local names = collectTokenNames()
 
     print("[ICHIGER] Token scan found " .. tostring(#names) .. " names")
     for _, name in ipairs(names) do
@@ -3818,6 +3855,7 @@ local MainTab = Window:NewTab("Home")
 local MainControl = MainTab:NewSection("Home")
 local MainTravel = MainTab:NewSection("Navigation")
 local MainUI = MainTab:NewSection("UI")
+local MainPerf = MainTab:NewSection("Anti Lag Quick")
 
 MainControl:NewLabel("Stop Macro = ON, everything pauses")
 
@@ -3828,26 +3866,9 @@ MainControl:NewToggle("Stop Macro", "Pause all loops immediately", function(stat
     end
 end)
 
-MainControl:NewToggle("Auto Farm", "Start/stop autofarm", function(state)
-    Settings.AutoFarm = state
-    if state then
-        task.spawn(runAutoFarm)
-    else
-        stopMovement()
-    end
-end)
-
 MainControl:NewButton("Stop Now", "Stop autofarm and movement", function()
     Settings.AutoFarm = false
     stopMovement()
-end)
-
-MainControl:NewToggle("Auto Sprinkler", "Auto place sprinklers while farming", function(state)
-    Settings.AutoSprinkler = state
-end)
-
-MainControl:NewToggle("Auto Dig", "Auto activate equipped tool", function(state)
-    Settings.AutoDig = state
 end)
 
 MainTravel:NewButton("Go To Hive", "Move to hive once", function()
@@ -3880,6 +3901,38 @@ end)
 
 MainUI:NewKeybind("Toggle UI", "Show/hide the UI", Enum.KeyCode.RightControl, function()
     Library:ToggleUI()
+end)
+
+MainPerf:NewToggle("Anti Lag", "Enable or disable anti-lag", function(state)
+    Settings.AntiLagEnabled = state
+    if state then
+        task.spawn(function()
+            runAntiLagLoop(setDebugStatus)
+        end)
+    else
+        restoreAntiLag()
+    end
+end)
+
+MainPerf:NewToggle("Hide Tokens", "Hide token visuals for FPS", function(state)
+    Settings.HideTokens = state
+    requestAntiLagReapply()
+end)
+
+MainPerf:NewToggle("Disable 3D Rendering", "Max FPS mode", function(state)
+    Settings.Disable3DRendering = state
+    requestAntiLagReapply()
+end)
+
+MainPerf:NewButton("Apply Anti Lag Now", "Run anti-lag pass instantly", function()
+    applyAntiLagPass()
+    antiLagOneTimeApplied = true
+    antiLagDirty = false
+end)
+
+MainPerf:NewButton("Restore Visuals", "Restore visual changes", function()
+    Settings.AntiLagEnabled = false
+    restoreAntiLag()
 end)
 
 end
@@ -4056,64 +4109,58 @@ end)
 end
 
 do
-local TokenTab = Window:NewTab("Tokens")
-local TokenMain = TokenTab:NewSection("Token Filter")
-local TokenAdvanced = TokenTab:NewSection("Precise / Pop-Star")
+local TokenGuideTab = Window:NewTab("Token Guide")
+local TokenGuideKnown = TokenGuideTab:NewSection("Known Tokens (Support)")
+local TokenGuideLive = TokenGuideTab:NewSection("Detected Tokens (This Server)")
 
-TokenMain:NewToggle("Collect All Tokens", "Ignore filters below", function(state)
-    Settings.CollectAllTokens = state
+for _, entry in ipairs(TOKEN_GUIDE_LIST) do
+    local supported = isTokenSupportedByMacroName(entry.name)
+    local stateText = supported and "can collect" or "not supported"
+    TokenGuideKnown:NewLabel(entry.icon .. " " .. entry.name .. " | " .. stateText)
+end
+
+local tokenGuideStatus = TokenGuideLive:NewLabel("Detected: not scanned")
+local tokenGuideRows = {}
+for _ = 1, 18 do
+    table.insert(tokenGuideRows, TokenGuideLive:NewLabel("-"))
+end
+
+local function refreshTokenGuideRows()
+    local names = collectTokenNames()
+    if tokenGuideStatus and tokenGuideStatus.UpdateLabel then
+        tokenGuideStatus:UpdateLabel("Detected: " .. tostring(#names) .. " names")
+    end
+
+    for i, row in ipairs(tokenGuideRows) do
+        local line = " "
+        local tokenName = names[i]
+        if tokenName then
+            local supported = isTokenSupportedByMacroName(tokenName)
+            local collectNow = isTokenAllowed(tokenName)
+            local mode = supported and (collectNow and "collect now" or "filtered now") or "not supported"
+            line = (supported and "[+]" or "[-]") .. " " .. tokenName .. " | " .. mode
+        end
+        if row and row.UpdateLabel then
+            row:UpdateLabel(line)
+        end
+    end
+end
+
+TokenGuideLive:NewButton("Refresh Detected Tokens", "Scan token names in current server", function()
+    refreshTokenGuideRows()
 end)
 
-TokenMain:NewToggle("Honey", "Honey token filter", function(state)
-    Settings.TokenHoney = state
+TokenGuideLive:NewButton("Copy Detected Names", "Copy full token list to clipboard", function()
+    scanTokenNames()
+    refreshTokenGuideRows()
 end)
 
-TokenMain:NewToggle("Pollen", "Pollen token filter", function(state)
-    Settings.TokenPollen = state
+TokenGuideLive:NewButton("Collect All: ON", "Quick enable full token collection", function()
+    Settings.CollectAllTokens = true
 end)
 
-TokenMain:NewToggle("Boost", "Boost/focus/haste/melody", function(state)
-    Settings.TokenBoost = state
-end)
-
-TokenMain:NewToggle("Ability", "General ability tokens", function(state)
-    Settings.TokenAbility = state
-end)
-
-TokenMain:NewToggle("Ticket", "Ticket tokens", function(state)
-    Settings.TokenTicket = state
-end)
-
-TokenMain:NewToggle("Treat", "Treat tokens", function(state)
-    Settings.TokenTreat = state
-end)
-
-TokenAdvanced:NewToggle("Precise", "Precise / precision tokens", function(state)
-    Settings.TokenPrecise = state
-end)
-
-TokenAdvanced:NewToggle("Marks", "Mark / target tokens", function(state)
-    Settings.TokenMarks = state
-end)
-
-TokenAdvanced:NewToggle("Pop Star", "Pop star / star style tokens", function(state)
-    Settings.TokenPopStar = state
-end)
-
-TokenAdvanced:NewToggle("Link", "Link tokens", function(state)
-    Settings.TokenLink = state
-end)
-
-TokenAdvanced:NewToggle("Bomb", "Bomb tokens", function(state)
-    Settings.TokenBomb = state
-end)
-
-TokenAdvanced:NewToggle("Bubble", "Bubble tokens", function(state)
-    Settings.TokenBubble = state
-end)
-
-TokenAdvanced:NewToggle("Flame", "Flame tokens", function(state)
-    Settings.TokenFlame = state
+TokenGuideLive:NewButton("Collect All: OFF", "Use internal filters only", function()
+    Settings.CollectAllTokens = false
 end)
 
 end
@@ -4985,7 +5032,7 @@ end)
 end
 
 do
-local DebugTab = Window:NewTab("Debug")
+local DebugTab = Window:NewTab("Debug + AntiLag")
 local DebugMain = DebugTab:NewSection("Debug")
 local DebugDetected = DebugTab:NewSection("Detected Features")
 local DebugPerfCore = DebugTab:NewSection("Anti Lag Core")
