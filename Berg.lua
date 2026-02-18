@@ -167,7 +167,7 @@ local DEFAULT = {
     AntiLagRefreshSeconds = 4,
 
     ConfigAutoSave = true,
-    ConfigAutoSaveDelay = 20,
+    ConfigAutoSaveDelay = 10,
     ConfigAutoLoad = true,
     ConfigSaveBackup = true,
     ConfigOnlyIfChanged = true,
@@ -423,9 +423,21 @@ local EFFECT_CLASSES = {
 
 local HIVE_PART_HINTS = { "spawn", "platform", "pad", "circle", "base", "convert", "hive" }
 local CONFIG_FOLDER_NAME = "ICHIGERConfigs"
-local CONFIG_FILE_BASENAME = tostring(LocalPlayer.UserId) .. "_" .. tostring(game.PlaceId)
-local CONFIG_LEGACY_PATH = CONFIG_FOLDER_NAME .. "/" .. CONFIG_FILE_BASENAME .. ".json"
-local CONFIG_META_PATH = CONFIG_FOLDER_NAME .. "/meta_" .. CONFIG_FILE_BASENAME .. ".json"
+local CONFIG_PLACE_BASENAME = tostring(LocalPlayer.UserId) .. "_" .. tostring(game.PlaceId)
+local CONFIG_UNIVERSE_BASENAME = tostring(LocalPlayer.UserId) .. "_u" .. tostring(game.GameId)
+local CONFIG_PRIMARY_BASENAME = CONFIG_UNIVERSE_BASENAME ~= "" and CONFIG_UNIVERSE_BASENAME or CONFIG_PLACE_BASENAME
+local CONFIG_LEGACY_PATHS = {
+    CONFIG_FOLDER_NAME .. "/" .. CONFIG_PRIMARY_BASENAME .. ".json",
+}
+if CONFIG_PLACE_BASENAME ~= CONFIG_PRIMARY_BASENAME then
+    table.insert(CONFIG_LEGACY_PATHS, CONFIG_FOLDER_NAME .. "/" .. CONFIG_PLACE_BASENAME .. ".json")
+end
+local CONFIG_META_PATHS = {
+    CONFIG_FOLDER_NAME .. "/meta_" .. CONFIG_PRIMARY_BASENAME .. ".json",
+}
+if CONFIG_PLACE_BASENAME ~= CONFIG_PRIMARY_BASENAME then
+    table.insert(CONFIG_META_PATHS, CONFIG_FOLDER_NAME .. "/meta_" .. CONFIG_PLACE_BASENAME .. ".json")
+end
 local FIELD_FALLBACK_SIZE = Vector3.new(72, 20, 72)
 local SAFE_HIVE_ACTION_INTERVAL = 0.45
 local AGGRESSIVE_HIVE_ACTION_INTERVAL = 0.06
@@ -438,8 +450,15 @@ local combatLoopRunning = false
 local questLoopRunning = false
 local supportLoopRunning = false
 local planterLoopRunning = false
-local rbcLoopRunning = false
 local webhookLoopRunning = false
+
+local setToyStatus
+local setCombatStatus
+local setQuestStatus
+local setPlanterStatus
+local setWebhookStatus
+local setConfigStatus
+local setDebugStatus
 
 local fieldCache = {}
 local toyCache = {}
@@ -1646,11 +1665,7 @@ local function applyFaceDirection()
         return
     end
 
-    if Settings.FaceMethod == "Shift Lock" then
-        root.CFrame = CFrame.lookAt(root.Position, look)
-    else
-        root.CFrame = CFrame.lookAt(root.Position, look)
-    end
+    root.CFrame = CFrame.lookAt(root.Position, look)
 end
 
 local function shouldFightByName(rawName)
@@ -2029,44 +2044,6 @@ local function runPlanterLoop(updateStatus)
     end
 
     planterLoopRunning = false
-end
-
-local function runRbcLoop(updateStatus)
-    if rbcLoopRunning then
-        return
-    end
-    rbcLoopRunning = true
-
-    while Settings.EnableRBC do
-        if isAtlasPaused() then
-            task.wait(0.3)
-            continue
-        end
-
-        local didAny = false
-        if Settings.RBCAutoBuyPass then
-            didAny = callRemoteByAliases({ "rbc", "robobear", "pass", "buy" }) or didAny
-        end
-        if Settings.RBCAutoStart then
-            didAny = callRemoteByAliases({ "rbc", "robobear", "challenge", "start" }) or didAny
-        end
-        if Settings.RBCAutoSpawn then
-            didAny = callRemoteByAliases({ "rbc", "spawn", "summon" }) or didAny
-        end
-        if Settings.RBCUseTickets then
-            didAny = callRemoteByAliases({ "ticket", "rbc", "use" }) or didAny
-        end
-        if Settings.RBCAutoCollectLoot then
-            didAny = callRemoteByAliases({ "rbc", "loot", "collect" }) or didAny
-        end
-
-        if updateStatus then
-            updateStatus(didAny and "RBC: active" or "RBC: idle")
-        end
-        task.wait(math.clamp(tonumber(Settings.RBCLoopDelay) or 8, 3, 90))
-    end
-
-    rbcLoopRunning = false
 end
 
 local function isWebhookUrlValid(url)
@@ -3247,10 +3224,26 @@ local function normalizeProfileName(profileName)
     return string.sub(raw, 1, 32)
 end
 
-local function getConfigFilePath(profileName)
+local function appendUniquePath(paths, path)
+    for _, existing in ipairs(paths) do
+        if existing == path then
+            return
+        end
+    end
+    table.insert(paths, path)
+end
+
+local function getConfigFilePathCandidates(profileName)
     local normalized = normalizeProfileName(profileName)
-    local path = CONFIG_FOLDER_NAME .. "/" .. CONFIG_FILE_BASENAME .. "_" .. normalized .. ".json"
-    return path, normalized
+    local paths = {}
+    appendUniquePath(paths, CONFIG_FOLDER_NAME .. "/" .. CONFIG_PRIMARY_BASENAME .. "_" .. normalized .. ".json")
+    appendUniquePath(paths, CONFIG_FOLDER_NAME .. "/" .. CONFIG_PLACE_BASENAME .. "_" .. normalized .. ".json")
+    return paths, normalized
+end
+
+local function getConfigFilePath(profileName)
+    local paths, normalized = getConfigFilePathCandidates(profileName)
+    return paths[1], normalized
 end
 
 local function ensureConfigFolder()
@@ -3287,10 +3280,14 @@ local function saveConfigMetaProfile(profileName)
         return false, "Meta encode failed"
     end
 
-    local okWrite = pcall(function()
-        writefile(CONFIG_META_PATH, encoded)
-    end)
-    if not okWrite then
+    local wroteAny = false
+    for _, metaPath in ipairs(CONFIG_META_PATHS) do
+        local okWrite = pcall(function()
+            writefile(metaPath, encoded)
+        end)
+        wroteAny = wroteAny or okWrite
+    end
+    if not wroteAny then
         return false, "Meta write failed"
     end
 
@@ -3303,27 +3300,21 @@ local function loadConfigMetaProfile()
         return false
     end
 
-    if not isfile(CONFIG_META_PATH) then
-        return false
-    end
-
-    local okRead, raw = pcall(function()
-        return readfile(CONFIG_META_PATH)
-    end)
-    if not okRead then
-        return false
-    end
-
-    local okDecode, payload = pcall(function()
-        return HttpService:JSONDecode(raw)
-    end)
-    if not okDecode or type(payload) ~= "table" then
-        return false
-    end
-
-    if payload.profile ~= nil then
-        Settings.ConfigProfile = normalizeProfileName(payload.profile)
-        return true
+    for _, metaPath in ipairs(CONFIG_META_PATHS) do
+        if isfile(metaPath) then
+            local okRead, raw = pcall(function()
+                return readfile(metaPath)
+            end)
+            if okRead then
+                local okDecode, payload = pcall(function()
+                    return HttpService:JSONDecode(raw)
+                end)
+                if okDecode and type(payload) == "table" and payload.profile ~= nil then
+                    Settings.ConfigProfile = normalizeProfileName(payload.profile)
+                    return true
+                end
+            end
+        end
     end
 
     return false
@@ -3359,6 +3350,7 @@ local function captureConfigData(includeMeta)
         version = 2,
         userId = LocalPlayer.UserId,
         placeId = game.PlaceId,
+        gameId = game.GameId,
         profile = normalizeProfileName(Settings.ConfigProfile),
         script = "ICHIGER",
         settings = {},
@@ -3389,7 +3381,7 @@ end
 
 local function normalizeConfigValues()
     Settings.TweenSoftness = math.clamp(tonumber(Settings.TweenSoftness) or 70, 0, 100)
-    Settings.ConfigAutoSaveDelay = math.clamp(tonumber(Settings.ConfigAutoSaveDelay) or 20, 5, 120)
+    Settings.ConfigAutoSaveDelay = math.clamp(tonumber(Settings.ConfigAutoSaveDelay) or 10, 5, 120)
     Settings.SprinklerInterval = math.clamp(tonumber(Settings.SprinklerInterval) or 12, 3, 60)
     Settings.MaterialsLoopDelay = math.clamp(tonumber(Settings.MaterialsLoopDelay) or 120, 10, 900)
     Settings.WaitBeforeConverting = math.clamp(tonumber(Settings.WaitBeforeConverting) or 0, 0, 25)
@@ -3479,7 +3471,8 @@ local function saveConfigToFile(profileName, forceWrite)
         return false, msg
     end
 
-    local path, normalizedProfile = getConfigFilePath(profileName or Settings.ConfigProfile)
+    local paths, normalizedProfile = getConfigFilePathCandidates(profileName or Settings.ConfigProfile)
+    local path = paths[1]
     Settings.ConfigProfile = normalizedProfile
 
     local comparePayload = captureConfigData(false)
@@ -3499,21 +3492,28 @@ local function saveConfigToFile(profileName, forceWrite)
         return false, "JSON encode failed"
     end
 
-    if Settings.ConfigSaveBackup and isfile(path) then
-        pcall(function()
-            local oldRaw = readfile(path)
-            writefile(path .. ".bak", oldRaw)
+    local wroteAny = false
+    for _, writePath in ipairs(paths) do
+        if Settings.ConfigSaveBackup and isfile(writePath) then
+            pcall(function()
+                local oldRaw = readfile(writePath)
+                writefile(writePath .. ".bak", oldRaw)
+            end)
+        end
+
+        local okWrite = pcall(function()
+            writefile(writePath, encoded)
         end)
+        if okWrite then
+            configWriteCache[writePath] = cloneConfigValue(comparePayload)
+            wroteAny = true
+        end
     end
 
-    local okWrite = pcall(function()
-        writefile(path, encoded)
-    end)
-    if not okWrite then
+    if not wroteAny then
         return false, "Write failed"
     end
 
-    configWriteCache[path] = cloneConfigValue(comparePayload)
     pcall(function()
         saveConfigMetaProfile(normalizedProfile)
     end)
@@ -3527,15 +3527,33 @@ local function loadConfigFromFile(profileName)
         return false, msg
     end
 
-    local path, normalizedProfile = getConfigFilePath(profileName or Settings.ConfigProfile)
-    local fallbackLegacy = false
-    if not isfile(path) then
-        if normalizedProfile == "main" and isfile(CONFIG_LEGACY_PATH) then
-            path = CONFIG_LEGACY_PATH
-            fallbackLegacy = true
-        else
-            return false, "No config for profile: " .. normalizedProfile
+    local paths, normalizedProfile = getConfigFilePathCandidates(profileName or Settings.ConfigProfile)
+    local path = nil
+    local sourceWasFallback = false
+
+    for _, candidatePath in ipairs(paths) do
+        if isfile(candidatePath) then
+            path = candidatePath
+            break
         end
+    end
+
+    if not path and normalizedProfile == "main" then
+        for _, legacyPath in ipairs(CONFIG_LEGACY_PATHS) do
+            if isfile(legacyPath) then
+                path = legacyPath
+                sourceWasFallback = true
+                break
+            end
+        end
+    end
+
+    if not path then
+        return false, "No config for profile: " .. normalizedProfile
+    end
+
+    if path ~= paths[1] then
+        sourceWasFallback = true
     end
 
     local okRead, raw = pcall(function()
@@ -3575,11 +3593,13 @@ local function loadConfigFromFile(profileName)
     Settings.ConfigProfile = normalizedProfile
     local comparePayload = captureConfigData(false)
     comparePayload.profile = normalizedProfile
-    configWriteCache[path] = cloneConfigValue(comparePayload)
+    for _, cachePath in ipairs(paths) do
+        configWriteCache[cachePath] = cloneConfigValue(comparePayload)
+    end
     pcall(function()
         saveConfigMetaProfile(normalizedProfile)
     end)
-    if fallbackLegacy then
+    if sourceWasFallback then
         pcall(function()
             saveConfigToFile(normalizedProfile, true)
         end)
@@ -3594,9 +3614,31 @@ local function loadBackupConfigFromFile(profileName)
         return false, msg
     end
 
-    local path, normalizedProfile = getConfigFilePath(profileName or Settings.ConfigProfile)
-    local backupPath = path .. ".bak"
-    if not isfile(backupPath) then
+    local paths, normalizedProfile = getConfigFilePathCandidates(profileName or Settings.ConfigProfile)
+    local backupPath = nil
+    local sourcePath = nil
+
+    for _, candidatePath in ipairs(paths) do
+        local candidateBackup = candidatePath .. ".bak"
+        if isfile(candidateBackup) then
+            backupPath = candidateBackup
+            sourcePath = candidatePath
+            break
+        end
+    end
+
+    if not backupPath and normalizedProfile == "main" then
+        for _, legacyPath in ipairs(CONFIG_LEGACY_PATHS) do
+            local legacyBackup = legacyPath .. ".bak"
+            if isfile(legacyBackup) then
+                backupPath = legacyBackup
+                sourcePath = legacyPath
+                break
+            end
+        end
+    end
+
+    if not backupPath then
         return false, "No backup for profile: " .. normalizedProfile
     end
 
@@ -3622,10 +3664,17 @@ local function loadBackupConfigFromFile(profileName)
     Settings.ConfigProfile = normalizedProfile
     local comparePayload = captureConfigData(false)
     comparePayload.profile = normalizedProfile
-    configWriteCache[path] = cloneConfigValue(comparePayload)
+    for _, cachePath in ipairs(paths) do
+        configWriteCache[cachePath] = cloneConfigValue(comparePayload)
+    end
     pcall(function()
         saveConfigMetaProfile(normalizedProfile)
     end)
+    if sourcePath and sourcePath ~= paths[1] then
+        pcall(function()
+            saveConfigToFile(normalizedProfile, true)
+        end)
+    end
     return true, "Backup loaded (" .. normalizedProfile .. ")"
 end
 
@@ -3639,22 +3688,34 @@ local function deleteConfigFile(profileName)
         return false, "Executor has no delfile"
     end
 
-    local path, normalizedProfile = getConfigFilePath(profileName or Settings.ConfigProfile)
-    local deletedAny = false
-    if isfile(path) then
-        local okDel = pcall(function()
-            delfile(path)
-        end)
-        deletedAny = deletedAny or okDel
+    local paths, normalizedProfile = getConfigFilePathCandidates(profileName or Settings.ConfigProfile)
+    local deleteTargets = {}
+    for _, path in ipairs(paths) do
+        appendUniquePath(deleteTargets, path)
     end
-    if isfile(path .. ".bak") then
-        pcall(function()
-            delfile(path .. ".bak")
-        end)
-        deletedAny = true
+    if normalizedProfile == "main" then
+        for _, legacyPath in ipairs(CONFIG_LEGACY_PATHS) do
+            appendUniquePath(deleteTargets, legacyPath)
+        end
     end
 
-    configWriteCache[path] = nil
+    local deletedAny = false
+    for _, path in ipairs(deleteTargets) do
+        if isfile(path) then
+            local okDel = pcall(function()
+                delfile(path)
+            end)
+            deletedAny = deletedAny or okDel
+        end
+        if isfile(path .. ".bak") then
+            local okBakDel = pcall(function()
+                delfile(path .. ".bak")
+            end)
+            deletedAny = deletedAny or okBakDel
+        end
+        configWriteCache[path] = nil
+    end
+
     if deletedAny then
         return true, "Deleted (" .. normalizedProfile .. ")"
     end
@@ -3751,15 +3812,6 @@ LocalPlayer.CharacterAdded:Connect(function()
 end)
 
 local Window = Library.CreateLib("ICHIGER v1.0", UITheme)
-
-setToyStatus = function() end
-setCombatStatus = function() end
-setQuestStatus = function() end
-setPlanterStatus = function() end
-setRbcStatus = function() end
-setWebhookStatus = function() end
-setConfigStatus = function() end
-setDebugStatus = function() end
 
 do
 local MainTab = Window:NewTab("Home")
@@ -5129,7 +5181,7 @@ end)
 
 task.spawn(function()
     while true do
-        local waitSeconds = math.clamp(tonumber(Settings.ConfigAutoSaveDelay) or 20, 5, 120)
+        local waitSeconds = math.clamp(tonumber(Settings.ConfigAutoSaveDelay) or 10, 5, 120)
         task.wait(waitSeconds)
         if Settings.ConfigAutoSave then
             local ok, msg = saveConfigToFile(Settings.ConfigProfile, false)
