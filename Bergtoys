@@ -1,0 +1,601 @@
+-- BergToys BSS
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local HttpService = game:GetService("HttpService")
+local Workspace = game:GetService("Workspace")
+
+local LocalPlayer = Players.LocalPlayer
+
+local function minutes(v)
+    return v * 60
+end
+
+local function hours(v)
+    return v * 3600
+end
+
+local DEFAULTS = {
+    allEnabled = false,
+
+    -- Methods
+    useRemoteMethod = true,
+    useTriggerMethod = true,
+    enableLogs = true,
+
+    -- Boosters
+    autoBlueBooster = false,
+    autoRedBooster = false,
+    autoMountainTopBooster = false,
+
+    -- Dispensers
+    autoBlueberryDispenser = false,
+    autoHoneyDispenser = false,
+    autoStrawberryDispenser = false,
+    autoTreatDispenser = false,
+    autoCoconutDispenser = false,
+    autoAntPassDispenser = false,
+    autoRoboPassDispenser = false,
+    autoRoyalJellyDispenser = false,
+    autoGlueDispenser = false,
+
+    -- Beesmas
+    autoBeesmasFeast = false,
+    autoCandles = false,
+    autoGingerbreadHouse = false,
+    autoOnettsLidArt = false,
+    autoSamovar = false,
+    autoStockings = false,
+    autoSnowMachine = false,
+
+    -- Loops
+    actionDelay = 4,
+    beesmasDelay = 8
+}
+
+local CONFIG_FOLDER = "BergToys"
+local CONFIG_FILE = CONFIG_FOLDER .. "/config.json"
+
+local State = {}
+for k, v in pairs(DEFAULTS) do
+    State[k] = v
+end
+
+local function canFileApi()
+    return type(isfile) == "function"
+        and type(readfile) == "function"
+        and type(writefile) == "function"
+        and type(makefolder) == "function"
+        and type(isfolder) == "function"
+end
+
+local function saveConfig()
+    if not canFileApi() then
+        return
+    end
+
+    if not isfolder(CONFIG_FOLDER) then
+        makefolder(CONFIG_FOLDER)
+    end
+
+    local ok, encoded = pcall(function()
+        return HttpService:JSONEncode(State)
+    end)
+    if ok then
+        writefile(CONFIG_FILE, encoded)
+    end
+end
+
+local function loadConfig()
+    if not canFileApi() then
+        return
+    end
+
+    if not isfolder(CONFIG_FOLDER) then
+        makefolder(CONFIG_FOLDER)
+    end
+
+    if not isfile(CONFIG_FILE) then
+        saveConfig()
+        return
+    end
+
+    local ok, decoded = pcall(function()
+        return HttpService:JSONDecode(readfile(CONFIG_FILE))
+    end)
+    if not ok or type(decoded) ~= "table" then
+        saveConfig()
+        return
+    end
+
+    for k, defaultValue in pairs(DEFAULTS) do
+        if type(decoded[k]) == type(defaultValue) then
+            State[k] = decoded[k]
+        else
+            State[k] = defaultValue
+        end
+    end
+end
+
+local function sanitizeNumber(name, fallback)
+    local value = tonumber(State[name])
+    if not value or value <= 0 then
+        State[name] = fallback
+    else
+        State[name] = value
+    end
+end
+
+local function toPositiveNumber(value, fallback)
+    local num = tonumber(value)
+    if num and num > 0 then
+        return num
+    end
+    return fallback
+end
+
+loadConfig()
+sanitizeNumber("actionDelay", DEFAULTS.actionDelay)
+sanitizeNumber("beesmasDelay", DEFAULTS.beesmasDelay)
+
+local BOOSTERS = {
+    { key = "autoBlueBooster", ui = "Auto Blue Booster", toyNames = { "Blue Field Booster", "Blue Booster" }, cooldown = minutes(45) },
+    { key = "autoRedBooster", ui = "Auto Red Booster", toyNames = { "Red Field Booster", "Red Booster" }, cooldown = minutes(45) },
+    { key = "autoMountainTopBooster", ui = "Auto Mountain Top Booster", toyNames = { "Field Booster", "Mountain Top Booster" }, cooldown = minutes(45) }
+}
+
+local DISPENSERS = {
+    { key = "autoBlueberryDispenser", ui = "Auto Blueberry Dispenser", toyNames = { "Blueberry Dispenser" }, cooldown = hours(4) },
+    { key = "autoHoneyDispenser", ui = "Auto Honey Dispenser", toyNames = { "Honey Dispenser" }, cooldown = hours(1) },
+    { key = "autoStrawberryDispenser", ui = "Auto Strawberry Dispenser", toyNames = { "Strawberry Dispenser" }, cooldown = hours(4) },
+    { key = "autoTreatDispenser", ui = "Auto Treat Dispenser", toyNames = { "Treat Dispenser" }, cooldown = hours(1) },
+    { key = "autoCoconutDispenser", ui = "Auto Coconut Dispenser", toyNames = { "Coconut Dispenser" }, cooldown = hours(4) },
+    { key = "autoAntPassDispenser", ui = "Auto Ant Pass Dispenser", toyNames = { "Free Ant Pass Dispenser", "Ant Pass Dispenser" }, cooldown = hours(2) },
+    { key = "autoRoboPassDispenser", ui = "Auto Robo Pass Dispenser", toyNames = { "Free Robo Pass Dispenser", "Robo Pass Dispenser" }, cooldown = hours(2) },
+    { key = "autoRoyalJellyDispenser", ui = "Auto Royal Jelly Dispenser", toyNames = { "Free Royal Jelly Dispenser", "Royal Jelly Dispenser" }, cooldown = hours(22) },
+    { key = "autoGlueDispenser", ui = "Auto Glue Dispenser", toyNames = { "Glue Dispenser" }, cooldown = hours(22) }
+}
+
+local BEESMAS = {
+    { key = "autoBeesmasFeast", ui = "Auto Beesmas Feast", toyNames = { "Beesmas Feast", "Feast" }, cooldown = minutes(90) },
+    { key = "autoCandles", ui = "Auto Candles", toyNames = { "Honeyday Candles", "Candles" }, cooldown = hours(4) },
+    { key = "autoGingerbreadHouse", ui = "Auto Gingerbread House", toyNames = { "Gingerbread House" }, cooldown = hours(2) },
+    { key = "autoOnettsLidArt", ui = "Auto Onett's Lid Art", toyNames = { "Onett's Lid Art", "Onett Lid Art" }, cooldown = hours(8) },
+    { key = "autoSamovar", ui = "Auto Samovar", toyNames = { "Samovar" }, cooldown = hours(6) },
+    { key = "autoStockings", ui = "Auto Stockings", toyNames = { "Stockings" }, cooldown = hours(1) },
+    { key = "autoSnowMachine", ui = "Auto Snow Machine", toyNames = { "Snow Machine", "SnowMachine" }, cooldown = hours(2) }
+}
+
+local ALL_ACTIONS = {}
+for _, item in ipairs(BOOSTERS) do
+    table.insert(ALL_ACTIONS, item)
+end
+for _, item in ipairs(DISPENSERS) do
+    table.insert(ALL_ACTIONS, item)
+end
+for _, item in ipairs(BEESMAS) do
+    table.insert(ALL_ACTIONS, item)
+end
+
+local nextReadyAt = {}
+local lastMethod = {}
+for _, action in ipairs(ALL_ACTIONS) do
+    nextReadyAt[action.key] = 0
+    lastMethod[action.key] = "-"
+end
+
+local LOG_LIMIT = 120
+local LOG_VIEW_LINES = 12
+local logBuffer = {}
+local logLabels = {}
+local timerLabels = {}
+
+local function formatSeconds(total)
+    if total <= 0 then
+        return "Ready"
+    end
+
+    local h = math.floor(total / 3600)
+    local m = math.floor((total % 3600) / 60)
+    local s = total % 60
+
+    if h > 0 then
+        return string.format("%dh %dm %ds", h, m, s)
+    elseif m > 0 then
+        return string.format("%dm %ds", m, s)
+    end
+    return string.format("%ds", s)
+end
+
+local function refreshLogLabels()
+    for i = 1, LOG_VIEW_LINES do
+        local line = logBuffer[i] or "-"
+        local labelObj = logLabels[i]
+        if labelObj and labelObj.UpdateLabel then
+            labelObj:UpdateLabel(line)
+        end
+    end
+end
+
+local function pushLog(text)
+    if not State.enableLogs then
+        return
+    end
+
+    local stamp = os.date("%H:%M:%S")
+    table.insert(logBuffer, 1, "[" .. stamp .. "] " .. text)
+    while #logBuffer > LOG_LIMIT do
+        table.remove(logBuffer)
+    end
+    refreshLogLabels()
+end
+
+local function clearLogs()
+    logBuffer = {}
+    refreshLogLabels()
+end
+
+local function getToyEvent()
+    local events = ReplicatedStorage:FindFirstChild("Events")
+    if not events then
+        return nil
+    end
+
+    local toyEvent = events:FindFirstChild("ToyEvent")
+    if toyEvent then
+        return toyEvent
+    end
+    return events:FindFirstChild("ToyEvent", true)
+end
+
+local function findToyInstance(toyNames)
+    local toysFolder = Workspace:FindFirstChild("Toys")
+    if toysFolder then
+        for _, name in ipairs(toyNames) do
+            local obj = toysFolder:FindFirstChild(name)
+            if obj then
+                return obj, name
+            end
+        end
+    end
+
+    for _, name in ipairs(toyNames) do
+        local obj = Workspace:FindFirstChild(name, true)
+        if obj then
+            return obj, name
+        end
+    end
+
+    return nil, toyNames[1]
+end
+
+local function getRootPart()
+    local char = LocalPlayer.Character
+    if not char then
+        return nil
+    end
+    return char:FindFirstChild("HumanoidRootPart")
+end
+
+local function callToyEvent(toyName)
+    local toyEvent = getToyEvent()
+    if not toyEvent then
+        return false
+    end
+
+    local ok = pcall(function()
+        if toyEvent:IsA("RemoteEvent") then
+            toyEvent:FireServer(toyName)
+        elseif toyEvent:IsA("RemoteFunction") then
+            toyEvent:InvokeServer(toyName)
+        end
+    end)
+    return ok
+end
+
+local function tryRemoteCollect(action, preferredName)
+    if not State.useRemoteMethod then
+        return false
+    end
+
+    local called = false
+    local names = {}
+
+    if preferredName then
+        table.insert(names, preferredName)
+    end
+    for _, name in ipairs(action.toyNames) do
+        if name ~= preferredName then
+            table.insert(names, name)
+        end
+    end
+
+    for _, name in ipairs(names) do
+        local ok = callToyEvent(name)
+        if ok then
+            called = true
+            break
+        end
+    end
+
+    return called
+end
+
+local function triggerProximity(root)
+    if type(fireproximityprompt) ~= "function" then
+        return false, 0
+    end
+
+    local count = 0
+    for _, obj in ipairs(root:GetDescendants()) do
+        if obj:IsA("ProximityPrompt") then
+            local ok = pcall(function()
+                fireproximityprompt(obj, 1, true)
+            end)
+            if ok then
+                count = count + 1
+            end
+        end
+    end
+    return count > 0, count
+end
+
+local function triggerTouch(root)
+    if type(firetouchinterest) ~= "function" then
+        return false, 0
+    end
+
+    local hrp = getRootPart()
+    if not hrp then
+        return false, 0
+    end
+
+    local touchParts = {}
+    for _, obj in ipairs(root:GetDescendants()) do
+        if obj:IsA("BasePart") and obj:FindFirstChildOfClass("TouchTransmitter") then
+            table.insert(touchParts, obj)
+        end
+    end
+
+    if #touchParts == 0 and root:IsA("BasePart") then
+        table.insert(touchParts, root)
+    end
+
+    local count = 0
+    for _, part in ipairs(touchParts) do
+        local ok = pcall(function()
+            firetouchinterest(hrp, part, 0)
+            task.wait()
+            firetouchinterest(hrp, part, 1)
+        end)
+        if ok then
+            count = count + 1
+        end
+    end
+
+    return count > 0, count
+end
+
+local function triggerClick(root)
+    if type(fireclickdetector) ~= "function" then
+        return false, 0
+    end
+
+    local count = 0
+    for _, obj in ipairs(root:GetDescendants()) do
+        if obj:IsA("ClickDetector") then
+            local ok = pcall(function()
+                fireclickdetector(obj)
+            end)
+            if ok then
+                count = count + 1
+            end
+        end
+    end
+    return count > 0, count
+end
+
+local function tryTriggerCollect(toyInstance)
+    if not State.useTriggerMethod then
+        return false, "trigger disabled"
+    end
+    if not toyInstance then
+        return false, "toy not found"
+    end
+
+    local promptOk, promptCount = triggerProximity(toyInstance)
+    local touchOk, touchCount = triggerTouch(toyInstance)
+    local clickOk, clickCount = triggerClick(toyInstance)
+
+    local ok = promptOk or touchOk or clickOk
+    local methodInfo = string.format("prompt:%d touch:%d click:%d", promptCount, touchCount, clickCount)
+    return ok, methodInfo
+end
+
+local function runAction(action)
+    local now = os.time()
+    if now < (nextReadyAt[action.key] or 0) then
+        return false
+    end
+
+    local toyInstance, pickedName = findToyInstance(action.toyNames)
+    local remoteOk = tryRemoteCollect(action, pickedName)
+    local triggerOk, triggerInfo = tryTriggerCollect(toyInstance)
+
+    if remoteOk or triggerOk then
+        local reliable = triggerOk or toyInstance ~= nil
+        local cooldown = reliable and action.cooldown or 20
+        nextReadyAt[action.key] = now + cooldown
+        lastMethod[action.key] = (triggerOk and "trigger") or (remoteOk and "remote") or "-"
+
+        pushLog(string.format(
+            "%s -> remote:%s trigger:%s (%s) name:%s",
+            action.ui,
+            tostring(remoteOk),
+            tostring(triggerOk),
+            triggerInfo,
+            pickedName or "-"
+        ))
+        return true
+    end
+
+    nextReadyAt[action.key] = now + 20
+    lastMethod[action.key] = "retry"
+    pushLog(action.ui .. " -> fail (no remote/trigger access)")
+    return false
+end
+
+local function runEnabledGroup(group)
+    for _, action in ipairs(group) do
+        if State[action.key] then
+            runAction(action)
+            task.wait(0.2)
+        end
+    end
+end
+
+local function refreshTimerLabels()
+    local now = os.time()
+    for _, action in ipairs(ALL_ACTIONS) do
+        local left = math.max(0, (nextReadyAt[action.key] or 0) - now)
+        local timerText = formatSeconds(left)
+        local label = timerLabels[action.key]
+        if label and label.UpdateLabel then
+            label:UpdateLabel(string.format("%s: %s [%s]", action.ui, timerText, lastMethod[action.key] or "-"))
+        end
+    end
+end
+
+-- Kavo UI
+local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"))()
+local Window = Library.CreateLib("BergToys | BSS Remote", "Midnight")
+
+local toggleRefs = {}
+local function bindToggle(section, label, tip, stateKey)
+    local toggle = section:NewToggle(label, tip, function(v)
+        State[stateKey] = v
+        saveConfig()
+    end)
+    table.insert(toggleRefs, {
+        object = toggle,
+        label = label,
+        key = stateKey
+    })
+end
+
+local function refreshToggleStates()
+    for _, ref in ipairs(toggleRefs) do
+        if ref.object and ref.object.UpdateToggle then
+            ref.object:UpdateToggle(ref.label, State[ref.key])
+        end
+    end
+end
+
+local MainTab = Window:NewTab("Main")
+local MainSection = MainTab:NewSection("Main")
+bindToggle(MainSection, "All Enabled", "Enable/Disable all sections", "allEnabled")
+
+local BoostersTab = Window:NewTab("Boosters")
+local BoostersSection = BoostersTab:NewSection("Boosters")
+for _, action in ipairs(BOOSTERS) do
+    bindToggle(BoostersSection, action.ui, action.ui, action.key)
+end
+
+local DispensersTab = Window:NewTab("Dispensers")
+local DispensersSection = DispensersTab:NewSection("Dispensers")
+for _, action in ipairs(DISPENSERS) do
+    bindToggle(DispensersSection, action.ui, action.ui, action.key)
+end
+
+local BeesmasTab = Window:NewTab("Beesmas")
+local BeesmasSection = BeesmasTab:NewSection("Beesmas")
+for _, action in ipairs(BEESMAS) do
+    bindToggle(BeesmasSection, action.ui, action.ui, action.key)
+end
+
+local TimersTab = Window:NewTab("Timers")
+local TimersSection = TimersTab:NewSection("Cooldown Timers")
+for _, action in ipairs(ALL_ACTIONS) do
+    timerLabels[action.key] = TimersSection:NewLabel(action.ui .. ": Ready [-]")
+end
+
+local LogsTab = Window:NewTab("Logs")
+local LogsSection = LogsTab:NewSection("Runtime Logs")
+LogsSection:NewButton("Clear Logs", "Clear log lines", function()
+    clearLogs()
+end)
+for i = 1, LOG_VIEW_LINES do
+    logLabels[i] = LogsSection:NewLabel("-")
+end
+
+local ConfigTab = Window:NewTab("Config")
+local ConfigSection = ConfigTab:NewSection("Config")
+
+bindToggle(ConfigSection, "Use Remote Method", "Collect using Events.ToyEvent", "useRemoteMethod")
+bindToggle(ConfigSection, "Use Trigger Method", "Collect using prompts/touch/click triggers", "useTriggerMethod")
+bindToggle(ConfigSection, "Enable Logs", "Show runtime logs in Logs tab", "enableLogs")
+
+ConfigSection:NewButton("Save Config", "Save current settings", function()
+    saveConfig()
+    pushLog("Config saved")
+end)
+
+ConfigSection:NewButton("Load Config", "Load settings from file", function()
+    loadConfig()
+    sanitizeNumber("actionDelay", DEFAULTS.actionDelay)
+    sanitizeNumber("beesmasDelay", DEFAULTS.beesmasDelay)
+    refreshToggleStates()
+    pushLog("Config loaded")
+end)
+
+ConfigSection:NewTextBox("Action Delay", "Seconds for boosters/dispensers loop", function(v)
+    State.actionDelay = toPositiveNumber(v, State.actionDelay)
+    saveConfig()
+    pushLog("Action Delay = " .. tostring(State.actionDelay))
+end)
+
+ConfigSection:NewTextBox("Beesmas Delay", "Seconds for beesmas loop", function(v)
+    State.beesmasDelay = toPositiveNumber(v, State.beesmasDelay)
+    saveConfig()
+    pushLog("Beesmas Delay = " .. tostring(State.beesmasDelay))
+end)
+
+ConfigSection:NewLabel("Loaded Action Delay: " .. tostring(State.actionDelay))
+ConfigSection:NewLabel("Loaded Beesmas Delay: " .. tostring(State.beesmasDelay))
+ConfigSection:NewLabel("Config File: " .. CONFIG_FILE)
+ConfigSection:NewLabel("Remote + Trigger methods are both available in this script.")
+
+refreshToggleStates()
+refreshLogLabels()
+refreshTimerLabels()
+pushLog("Script loaded. Methods: remote + trigger")
+
+task.spawn(function()
+    while task.wait(0.2) do
+        if not State.allEnabled then
+            continue
+        end
+
+        runEnabledGroup(BOOSTERS)
+        runEnabledGroup(DISPENSERS)
+        task.wait(toPositiveNumber(State.actionDelay, DEFAULTS.actionDelay))
+    end
+end)
+
+task.spawn(function()
+    while task.wait(0.2) do
+        if not State.allEnabled then
+            continue
+        end
+
+        runEnabledGroup(BEESMAS)
+        task.wait(toPositiveNumber(State.beesmasDelay, DEFAULTS.beesmasDelay))
+    end
+end)
+
+task.spawn(function()
+    while task.wait(1) do
+        refreshTimerLabels()
+    end
+end)
+
