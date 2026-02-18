@@ -1,13 +1,40 @@
--- Berg | BSS Auto Farm
--- Custom script build by Berg
-local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"))()
+
+local LIBRARY_URL = "https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"
+
+local function loadUiLibrary()
+    local okFetch, source = pcall(function()
+        return game:HttpGet(LIBRARY_URL)
+    end)
+    if not okFetch or type(source) ~= "string" or source == "" then
+        return nil, "HttpGet failed"
+    end
+
+    local chunk, loadErr = loadstring(source)
+    if type(chunk) ~= "function" then
+        return nil, loadErr or "loadstring failed"
+    end
+
+    local okRun, library = pcall(chunk)
+    if not okRun or type(library) ~= "table" then
+        return nil, "library runtime failed"
+    end
+
+    return library
+end
+
+local Library, libraryError = loadUiLibrary()
+if not Library then
+    warn("[Ichigisss] UI load failed: " .. tostring(libraryError))
+    return
+end
 
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local Lighting = game:GetService("Lighting")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local HttpService = game:GetService("HttpService")
-local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local TeleportService = game:GetService("TeleportService")
 
 if not game:IsLoaded() then
     game.Loaded:Wait()
@@ -42,6 +69,18 @@ local TOY_NAMES = {}
 for _, toy in ipairs(TOYS) do
     table.insert(TOY_NAMES, toy.label)
 end
+
+local FACE_METHODS = { "BodyGyro", "Shift Lock" }
+local SHIFT_DIRECTIONS = { "North", "South", "East", "West" }
+local FIELD_POSITIONS = { "Center", "North", "South", "East", "West" }
+local INSTANT_CONVERT_TYPES = { "Remote", "Tap", "Prompt" }
+local MASK_NAMES = {
+    "None",
+    "Gummy Mask",
+    "Honey Mask",
+    "Demon Mask",
+    "Bubble Mask",
+}
 
 local DEFAULT = {
     AutoFarm = false,
@@ -88,10 +127,117 @@ local DEFAULT = {
     ConfigOnlyIfChanged = true,
     ConfigProfile = "main",
 
+    ScriptStopped = false,
+    AutoSprinkler = false,
+    AutoDig = false,
+    SprinklerInterval = 12,
+
+    AutoPopStar = false,
+    AutoScorchingStar = false,
+    AutoGummyStar = false,
+    FarmBubbles = true,
+    FarmCoconuts = false,
+    FarmComboCoconuts = false,
+    ChangeFieldDuringCombo = false,
+    FarmDupedTokens = true,
+    FarmMeteorShowers = true,
+    FarmFire = true,
+    FarmFireflies = true,
+    FarmFuzzBombs = true,
+    FarmLeaves = true,
+    FarmPuppyBall = true,
+    FarmShower = true,
+    FarmTriangulate = true,
+    FarmUnderClouds = true,
+    FarmUnderBalloons = true,
+    IgnoreHoneyTokens = false,
+    FarmNearPosition = false,
+    FieldPosition = "Center",
+    FaceMethod = "BodyGyro",
+    ShiftLockDirection = "North",
+    FaceCenter = true,
+    FaceBubbles = true,
+    FaceFires = true,
+    FarmWithShiftLock = false,
+
+    ConvertBalloonAtMinutes = 15,
+    WaitBeforeConverting = 2,
+    StandInPreciseCrosshair = false,
+    StandInPreciseCrosshairAt = 80,
+    UseCoconutToConvert = false,
+    UseCoconutAtPercentage = 92,
+    InstantConvert = false,
+    InstantConvertType = "Remote",
+    AutoHoneyMaskForBalloon = false,
+    DefaultMask = "Gummy Mask",
+    CollectFestiveBlessing = true,
+    ConvertOnlyWhenInField = false,
+    ConvertBalloonWhenBagFull = false,
+    ConvertBalloonWhenBagFullBubble = false,
+    UseEnzymesForConvertingBalloon = false,
+    ResetWhenConverting = false,
+
+    EnableCombat = false,
+    CombatRadius = 220,
+    AutoDemonMask = false,
+    AutoStingers = false,
+    AutoStarSaw = false,
+    AutoAvoidMobs = false,
+    AutoKillAphid = false,
+    AutoKillLadybug = false,
+    AutoKillRhinoBeetle = false,
+    AutoKillSpider = false,
+    AutoKillMantis = false,
+    AutoKillScorpion = false,
+    AutoKillWerewolf = false,
+    AutoKillTunnelBear = false,
+    AutoKillKingBeetle = false,
+    AutoKillCoconutCrab = false,
+    AutoKillMondoChick = false,
+    AutoKillCommando = false,
+    AutoKillViciousBee = false,
+    GiftedViciousOnly = false,
+    ViciousMinLevel = 1,
+    ViciousMaxLevel = 20,
+    AutoKillWindyBee = false,
+    WindyMinLevel = 1,
+    WindyMaxLevel = 20,
+
+    AutoQuest = false,
+    AutoClaimQuests = true,
+    AutoQuestBlackBear = false,
+    AutoQuestMotherBear = false,
+    AutoQuestPandaBear = false,
+    AutoQuestScienceBear = false,
+    AutoQuestDapperBear = false,
+    AutoQuestOnett = false,
+    AutoQuestSpiritBear = false,
+    AutoQuestBrownBearRepeat = false,
+    AutoQuestBuckoRepeat = false,
+    AutoQuestRileyRepeat = false,
+    AutoQuestHoneyBeeRepeat = false,
+    AutoQuestPolarBearRepeat = false,
+    QuestFarmPollen = true,
+    QuestFarmGoo = true,
+    QuestFarmMobs = true,
+    QuestFarmAnts = false,
+    QuestFarmRageTokens = true,
+    QuestFarmPuffshrooms = false,
+    QuestDoDupedTokens = true,
+    QuestDoWindShrine = false,
+    QuestDoMemoryMatch = false,
+    QuestShareJellyBeans = false,
+    QuestCraftItems = false,
+    QuestUseToys = true,
+    FeedBees = false,
+    LevelUpBees = false,
+    PurchaseTreatsToLevelUp = false,
+    UseRoyalJelly = false,
+
     NoSafeMode = true,
 }
 
-local Settings = getgenv().BergBSSSettings or {}
+local Settings = getgenv().IchigisssSettings or getgenv().BergBSSSettings or {}
 for k, v in pairs(DEFAULT) do
     if Settings[k] == nil then
         Settings[k] = v
@@ -103,7 +249,7 @@ for _, toy in ipairs(TOYS) do
         Settings[key] = false
     end
 end
-getgenv().BergBSSSettings = Settings
+getgenv().IchigisssSettings = Settings
 
 local UITheme = {
     SchemeColor = Color3.fromRGB(166, 73, 255),
@@ -139,7 +285,7 @@ local EFFECT_CLASSES = {
 }
 
 local HIVE_PART_HINTS = { "spawn", "platform", "pad", "circle", "base", "convert", "hive" }
-local CONFIG_FOLDER_NAME = "BergConfigs"
+local CONFIG_FOLDER_NAME = "IchigisssConfigs"
 local CONFIG_FILE_BASENAME = tostring(LocalPlayer.UserId) .. "_" .. tostring(game.PlaceId)
 local CONFIG_LEGACY_PATH = CONFIG_FOLDER_NAME .. "/" .. CONFIG_FILE_BASENAME .. ".json"
 local CONFIG_META_PATH = CONFIG_FOLDER_NAME .. "/meta_" .. CONFIG_FILE_BASENAME .. ".json"
@@ -151,6 +297,9 @@ local currentTween = nil
 local farmLoopRunning = false
 local toyLoopRunning = false
 local antiLagLoopRunning = false
+local combatLoopRunning = false
+local questLoopRunning = false
+local supportLoopRunning = false
 
 local fieldCache = {}
 local toyCache = {}
@@ -158,6 +307,7 @@ local toyUseTracker = {}
 local antiLagBackups = setmetatable({}, { __mode = "k" })
 local convertRemoteCache = nil
 local configWriteCache = {}
+local lastSprinklerUse = 0
 local VirtualInputManager = nil
 local VirtualUser = nil
 pcall(function()
@@ -375,6 +525,20 @@ local function getRandomPointInField(fieldName)
     local zRadius = math.max(4, math.floor((fieldSize.Z * 0.5) - 4))
     local x = math.random(-xRadius, xRadius)
     local z = math.random(-zRadius, zRadius)
+
+    local biasX, biasZ = 0, 0
+    if Settings.FieldPosition == "North" then
+        biasZ = -math.floor(zRadius * 0.65)
+    elseif Settings.FieldPosition == "South" then
+        biasZ = math.floor(zRadius * 0.65)
+    elseif Settings.FieldPosition == "East" then
+        biasX = math.floor(xRadius * 0.65)
+    elseif Settings.FieldPosition == "West" then
+        biasX = -math.floor(xRadius * 0.65)
+    end
+
+    x = math.clamp(math.floor((x * 0.35) + biasX), -xRadius, xRadius)
+    z = math.clamp(math.floor((z * 0.35) + biasZ), -zRadius, zRadius)
     local point = (fieldCFrame * CFrame.new(x, 0, z)).Position
 
     local root = select(1, getRootAndHumanoid())
@@ -403,7 +567,14 @@ end
 
 local function isTokenAllowed(tokenName)
     if Settings.CollectAllTokens then
+        if Settings.IgnoreHoneyTokens and tokenMatches(tokenName, TOKEN_PATTERNS.Honey) then
+            return false
+        end
         return true
+    end
+
+    if Settings.IgnoreHoneyTokens and tokenMatches(tokenName, TOKEN_PATTERNS.Honey) then
+        return false
     end
 
     if Settings.TokenHoney and tokenMatches(tokenName, TOKEN_PATTERNS.Honey) then return true end
@@ -929,6 +1100,429 @@ local function tryActivateHiveConversion(hiveCFrame)
     return activated
 end
 
+local function isAtlasPaused()
+    return Settings.ScriptStopped == true
+end
+
+local function getSearchRoots()
+    local roots = { workspace, ReplicatedStorage }
+    local wEvents = workspace:FindFirstChild("Events")
+    local rEvents = ReplicatedStorage:FindFirstChild("Events")
+    if wEvents then
+        table.insert(roots, wEvents)
+    end
+    if rEvents then
+        table.insert(roots, rEvents)
+    end
+    return roots
+end
+
+local function callRemoteByAliases(aliases, ...)
+    local args = { ... }
+    for _, root in ipairs(getSearchRoots()) do
+        for _, d in ipairs(root:GetDescendants()) do
+            local isRemote = d:IsA("RemoteEvent") or d:IsA("RemoteFunction") or d:IsA("BindableEvent") or d:IsA("BindableFunction")
+            if isRemote then
+                local normalized = normalizeText(d.Name)
+                local matched = false
+                for _, alias in ipairs(aliases) do
+                    local a = normalizeText(alias)
+                    if a ~= "" and string.find(normalized, a, 1, true) then
+                        matched = true
+                        break
+                    end
+                end
+                if not matched then
+                    continue
+                end
+
+                local ok = false
+                if d:IsA("RemoteEvent") then
+                    ok = pcall(function()
+                        d:FireServer(table.unpack(args))
+                    end)
+                elseif d:IsA("RemoteFunction") then
+                    ok = pcall(function()
+                        d:InvokeServer(table.unpack(args))
+                    end)
+                elseif d:IsA("BindableEvent") then
+                    ok = pcall(function()
+                        d:Fire(table.unpack(args))
+                    end)
+                elseif d:IsA("BindableFunction") then
+                    ok = pcall(function()
+                        d:Invoke(table.unpack(args))
+                    end)
+                end
+                if ok then
+                    return true
+                end
+            end
+        end
+    end
+    return false
+end
+
+local function activateCurrentTool()
+    local character = getCharacter()
+    if not character then
+        return false
+    end
+    local tool = character:FindFirstChildWhichIsA("Tool")
+    if not tool then
+        return false
+    end
+
+    local ok = pcall(function()
+        tool:Activate()
+    end)
+    return ok
+end
+
+local function tryAutoSprinklerTick()
+    if not Settings.AutoSprinkler then
+        return false
+    end
+    local interval = math.clamp(tonumber(Settings.SprinklerInterval) or 12, 3, 60)
+    if (os.clock() - lastSprinklerUse) < interval then
+        return false
+    end
+
+    local ok = callRemoteByAliases({ "sprinkler", "sprinklerbuilder", "sprinklerbuilderactor", "place sprinklers" })
+    if ok then
+        lastSprinklerUse = os.clock()
+    end
+    return ok
+end
+
+local function tryAutoDigTick()
+    if not Settings.AutoDig then
+        return false
+    end
+    return activateCurrentTool()
+end
+
+local function getFieldCenterPosition()
+    local field = getFieldCFrame(Settings.FieldName)
+    if not field then
+        return nil
+    end
+    local root = select(1, getRootAndHumanoid())
+    if root then
+        return Vector3.new(field.Position.X, root.Position.Y, field.Position.Z)
+    end
+    return field.Position
+end
+
+local function getFaceTargetPosition()
+    if Settings.FaceCenter then
+        return getFieldCenterPosition()
+    end
+
+    if Settings.FaceBubbles then
+        local bubble = getNearestTokenInField(Settings.FieldName)
+        if bubble then
+            return bubble
+        end
+    end
+
+    return getFieldCenterPosition()
+end
+
+local function applyFaceDirection()
+    local root = select(1, getRootAndHumanoid())
+    if not root then
+        return
+    end
+
+    local targetPos = getFaceTargetPosition()
+    if not targetPos then
+        return
+    end
+
+    local look = Vector3.new(targetPos.X, root.Position.Y, targetPos.Z)
+    if (look - root.Position).Magnitude < 1 then
+        return
+    end
+
+    if Settings.FaceMethod == "Shift Lock" then
+        root.CFrame = CFrame.lookAt(root.Position, look)
+    else
+        root.CFrame = CFrame.lookAt(root.Position, look)
+    end
+end
+
+local function shouldFightByName(rawName)
+    local name = normalizeText(rawName)
+    if Settings.AutoKillAphid and string.find(name, "aphid", 1, true) then return true end
+    if Settings.AutoKillLadybug and string.find(name, "ladybug", 1, true) then return true end
+    if Settings.AutoKillRhinoBeetle and string.find(name, "rhinobeetle", 1, true) then return true end
+    if Settings.AutoKillSpider and string.find(name, "spider", 1, true) then return true end
+    if Settings.AutoKillMantis and string.find(name, "mantis", 1, true) then return true end
+    if Settings.AutoKillScorpion and string.find(name, "scorpion", 1, true) then return true end
+    if Settings.AutoKillWerewolf and string.find(name, "werewolf", 1, true) then return true end
+    if Settings.AutoKillTunnelBear and string.find(name, "tunnelbear", 1, true) then return true end
+    if Settings.AutoKillKingBeetle and string.find(name, "kingbeetle", 1, true) then return true end
+    if Settings.AutoKillCoconutCrab and string.find(name, "coconutcrab", 1, true) then return true end
+    if Settings.AutoKillMondoChick and string.find(name, "mondochick", 1, true) then return true end
+    if Settings.AutoKillCommando and string.find(name, "commandochick", 1, true) then return true end
+    if Settings.AutoKillViciousBee and string.find(name, "vicious", 1, true) then return true end
+    if Settings.AutoKillWindyBee and string.find(name, "windy", 1, true) then return true end
+    return false
+end
+
+local function isHostileName(rawName)
+    local name = normalizeText(rawName)
+    return string.find(name, "aphid", 1, true)
+        or string.find(name, "ladybug", 1, true)
+        or string.find(name, "rhinobeetle", 1, true)
+        or string.find(name, "spider", 1, true)
+        or string.find(name, "mantis", 1, true)
+        or string.find(name, "scorpion", 1, true)
+        or string.find(name, "werewolf", 1, true)
+        or string.find(name, "vicious", 1, true)
+        or string.find(name, "windy", 1, true)
+end
+
+local function getNearestHostile(maxDistance)
+    local root = select(1, getRootAndHumanoid())
+    if not root then
+        return nil
+    end
+
+    local nearestPos = nil
+    local nearestDist = math.huge
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("Model") and isHostileName(obj.Name) then
+            local part = getPart(obj)
+            if part then
+                local dist = (root.Position - part.Position).Magnitude
+                if dist < nearestDist and dist <= maxDistance then
+                    nearestDist = dist
+                    nearestPos = part.Position
+                end
+            end
+        end
+    end
+    return nearestPos
+end
+
+local function extractLevelFromModel(model)
+    if not model then
+        return nil
+    end
+
+    local direct = model:FindFirstChild("Level")
+    if direct and direct:IsA("NumberValue") then
+        return tonumber(direct.Value)
+    end
+
+    local fromName = string.match(model.Name, "%d+")
+    if fromName then
+        return tonumber(fromName)
+    end
+    return nil
+end
+
+local function isModelAlive(model)
+    local hum = model and model:FindFirstChildOfClass("Humanoid")
+    if hum then
+        return hum.Health > 0
+    end
+    return true
+end
+
+local function getNearestCombatTarget(maxDistance)
+    local root = select(1, getRootAndHumanoid())
+    if not root then
+        return nil, nil
+    end
+
+    local nearestModel = nil
+    local nearestPos = nil
+    local nearestDist = math.huge
+
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("Model") and shouldFightByName(obj.Name) and isModelAlive(obj) then
+            local modelLevel = extractLevelFromModel(obj)
+            local normalizedName = normalizeText(obj.Name)
+            if Settings.AutoKillViciousBee and string.find(normalizedName, "vicious", 1, true) and modelLevel then
+                if modelLevel < Settings.ViciousMinLevel or modelLevel > Settings.ViciousMaxLevel then
+                    continue
+                end
+            end
+            if Settings.AutoKillWindyBee and string.find(normalizedName, "windy", 1, true) and modelLevel then
+                if modelLevel < Settings.WindyMinLevel or modelLevel > Settings.WindyMaxLevel then
+                    continue
+                end
+            end
+
+            local part = getPart(obj)
+            if part then
+                local dist = (root.Position - part.Position).Magnitude
+                if dist <= maxDistance and dist < nearestDist then
+                    nearestDist = dist
+                    nearestModel = obj
+                    nearestPos = part.Position
+                end
+            end
+        end
+    end
+
+    return nearestModel, nearestPos
+end
+
+local function tryCombatSupport()
+    if Settings.AutoStingers then
+        callRemoteByAliases({ "stinger" }, "Use")
+    end
+    if Settings.AutoStarSaw then
+        callRemoteByAliases({ "starsaw", "star saw" }, "Use")
+    end
+    if Settings.AutoDemonMask then
+        callRemoteByAliases({ "mask", "equipmask" }, "Demon Mask")
+    end
+end
+
+local function runCombatLoop(updateStatus)
+    if combatLoopRunning then
+        return
+    end
+    combatLoopRunning = true
+
+    while Settings.EnableCombat do
+        if isAtlasPaused() then
+            task.wait(0.2)
+            continue
+        end
+
+        applyWalkSpeed()
+        local _, enemyPos = getNearestCombatTarget(math.clamp(tonumber(Settings.CombatRadius) or 220, 40, 600))
+        if enemyPos then
+            local root = select(1, getRootAndHumanoid())
+            local targetPos = enemyPos
+            if root then
+                targetPos = Vector3.new(enemyPos.X, root.Position.Y, enemyPos.Z)
+            end
+
+            walkTo(targetPos, 4, 2, function()
+                return not Settings.EnableCombat
+            end)
+
+            for _ = 1, 7 do
+                activateCurrentTool()
+                task.wait(0.08)
+            end
+            tryCombatSupport()
+            if updateStatus then
+                updateStatus("Combat: engaging")
+            end
+        else
+            if updateStatus then
+                updateStatus("Combat: idle")
+            end
+            task.wait(0.2)
+        end
+    end
+
+    combatLoopRunning = false
+end
+
+local function runQuestLoop(updateStatus)
+    if questLoopRunning then
+        return
+    end
+    questLoopRunning = true
+
+    while Settings.AutoQuest do
+        if isAtlasPaused() then
+            task.wait(0.4)
+            continue
+        end
+
+        local didAny = false
+        local questNpcs = {
+            { toggle = Settings.AutoQuestBlackBear, name = "Black Bear" },
+            { toggle = Settings.AutoQuestMotherBear, name = "Mother Bear" },
+            { toggle = Settings.AutoQuestPandaBear, name = "Panda Bear" },
+            { toggle = Settings.AutoQuestScienceBear, name = "Science Bear" },
+            { toggle = Settings.AutoQuestDapperBear, name = "Dapper Bear" },
+            { toggle = Settings.AutoQuestOnett, name = "Onett" },
+            { toggle = Settings.AutoQuestSpiritBear, name = "Spirit Bear" },
+            { toggle = Settings.AutoQuestBrownBearRepeat, name = "Brown Bear" },
+            { toggle = Settings.AutoQuestBuckoRepeat, name = "Bucko Bee" },
+            { toggle = Settings.AutoQuestRileyRepeat, name = "Riley Bee" },
+            { toggle = Settings.AutoQuestHoneyBeeRepeat, name = "Honey Bee" },
+            { toggle = Settings.AutoQuestPolarBearRepeat, name = "Polar Bear" },
+        }
+
+        for _, npc in ipairs(questNpcs) do
+            if npc.toggle then
+                local okClaim = callRemoteByAliases({ npc.name, "quest", "claim" }, npc.name)
+                local okTalk = callRemoteByAliases({ npc.name, "talk", "npc" }, npc.name)
+                didAny = didAny or okClaim or okTalk
+                task.wait(0.08)
+            end
+        end
+
+        if Settings.AutoClaimQuests then
+            didAny = callRemoteByAliases({ "quest", "claim", "reward" }) or didAny
+        end
+
+        if Settings.QuestUseToys then
+            for _, toy in ipairs(TOYS) do
+                local key = "Toy_" .. toy.key
+                if Settings[key] then
+                    callRemoteByAliases(toy.aliases)
+                    task.wait(0.05)
+                end
+            end
+            didAny = true
+        end
+
+        if Settings.FeedBees then
+            didAny = callRemoteByAliases({ "feed", "bee" }) or didAny
+        end
+        if Settings.LevelUpBees then
+            didAny = callRemoteByAliases({ "level", "bee", "treat" }) or didAny
+        end
+        if Settings.PurchaseTreatsToLevelUp then
+            didAny = callRemoteByAliases({ "purchase", "treat" }, 1000) or didAny
+        end
+        if Settings.UseRoyalJelly then
+            didAny = callRemoteByAliases({ "royaljelly", "use" }, "Auto") or didAny
+        end
+
+        if updateStatus then
+            updateStatus(didAny and "Quests: working" or "Quests: idle")
+        end
+
+        task.wait(1.4)
+    end
+
+    questLoopRunning = false
+end
+
+local function runSupportLoop()
+    if supportLoopRunning then
+        return
+    end
+    supportLoopRunning = true
+
+    while true do
+        local enabled = Settings.AutoDig or Settings.AutoSprinkler
+        if not enabled then
+            task.wait(0.3)
+        else
+            if not isAtlasPaused() then
+                tryAutoDigTick()
+                tryAutoSprinklerTick()
+            end
+            task.wait(0.1)
+        end
+    end
+end
+
 local function runAutoFarm()
     if farmLoopRunning then
         return
@@ -939,13 +1533,39 @@ local function runAutoFarm()
     local lastMoveAt = os.clock()
 
     while Settings.AutoFarm do
-        applyWalkSpeed()
-        local inHivePhase = false
+        if isAtlasPaused() then
+            stopMovement()
+            task.wait(0.2)
+            continue
+        end
 
-        if Settings.ReturnToHive and getBagPercent() >= Settings.HiveBagPercent then
+        applyWalkSpeed()
+        tryAutoDigTick()
+        tryAutoSprinklerTick()
+        applyFaceDirection()
+        local inHivePhase = false
+        local shouldConvert = Settings.ReturnToHive and getBagPercent() >= Settings.HiveBagPercent
+
+        if shouldConvert and Settings.ConvertOnlyWhenInField then
+            local root = select(1, getRootAndHumanoid())
+            if root then
+                shouldConvert = isPositionInsideField(root.Position, Settings.FieldName, 6)
+            else
+                shouldConvert = false
+            end
+        end
+
+        if shouldConvert then
             inHivePhase = true
             local hiveCFrame = getSpawnPadCFrame() or getHiveCFrame()
             if hiveCFrame then
+                if Settings.ResetWhenConverting then
+                    local _, humanoid = getRootAndHumanoid()
+                    if humanoid and humanoid.Health > 0 then
+                        humanoid.Health = 0
+                        task.wait(1.1)
+                    end
+                end
                 tweenTo(hiveCFrame, getActiveTweenSpeed())
                 local rootAtHive = select(1, getRootAndHumanoid())
                 if rootAtHive then
@@ -953,6 +1573,19 @@ local function runAutoFarm()
                     walkTo(exactCenter, 1.9, 1.8, function()
                         return not Settings.AutoFarm
                     end)
+                end
+
+                local waitBefore = math.clamp(tonumber(Settings.WaitBeforeConverting) or 0, 0, 25)
+                if waitBefore > 0 then
+                    task.wait(waitBefore)
+                end
+
+                if Settings.UseEnzymesForConvertingBalloon then
+                    callRemoteByAliases({ "enzyme", "useitem", "consume" }, "Enzymes")
+                end
+
+                if Settings.AutoHoneyMaskForBalloon then
+                    callRemoteByAliases({ "equipmask", "mask" }, "Honey Mask")
                 end
 
                 local convertTargets = getHiveConvertTargets(hiveCFrame)
@@ -981,6 +1614,9 @@ local function runAutoFarm()
                         if Settings.NoSafeMode then
                             tryActivateHiveConversion(hiveCFrame)
                         end
+                        if Settings.UseCoconutToConvert and getBagPercent() >= Settings.UseCoconutAtPercentage then
+                            callRemoteByAliases({ "coconut", "belt", "convert" }, "Use")
+                        end
                         nextActionAt = os.clock() + actionInterval
                     end
 
@@ -1004,6 +1640,10 @@ local function runAutoFarm()
                     task.wait(Settings.NoSafeMode and 0.05 or 0.2)
                 end
 
+                if Settings.AutoHoneyMaskForBalloon and Settings.DefaultMask ~= "None" then
+                    callRemoteByAliases({ "equipmask", "mask" }, Settings.DefaultMask)
+                end
+
                 if Settings.AutoFarm and getBagPercent() >= (Settings.HiveBagPercent - 1) then
                     local fieldReset = getFieldCFrame(Settings.FieldName)
                     if fieldReset then
@@ -1017,6 +1657,21 @@ local function runAutoFarm()
             end
         else
             stopTween()
+
+            if Settings.AutoAvoidMobs then
+                local hostilePos = getNearestHostile(18)
+                local root = select(1, getRootAndHumanoid())
+                if hostilePos and root then
+                    local awayDir = (root.Position - hostilePos)
+                    if awayDir.Magnitude > 0 then
+                        awayDir = awayDir.Unit
+                        local awayTarget = root.Position + (awayDir * 16)
+                        walkTo(Vector3.new(awayTarget.X, root.Position.Y, awayTarget.Z), 6, 1.1, function()
+                            return not Settings.AutoFarm
+                        end)
+                    end
+                end
+            end
 
             local tokenPos = getNearestTokenInField(Settings.FieldName)
             if tokenPos then
@@ -1295,6 +1950,11 @@ local function runToyLoop(updateStatus)
     toyLoopRunning = true
 
     while Settings.AutoUseToys do
+        if isAtlasPaused() then
+            task.wait(0.2)
+            continue
+        end
+
         local now = os.clock()
         local usedAny = false
 
@@ -1401,6 +2061,10 @@ local function runAntiLagLoop(updateStatus)
     antiLagLoopRunning = true
 
     while Settings.AntiLagEnabled do
+        if isAtlasPaused() then
+            task.wait(0.3)
+            continue
+        end
         applyAntiLagPass()
         if updateStatus then
             updateStatus("AntiLag active")
@@ -1430,7 +2094,7 @@ local function scanTokenNames()
     end
     table.sort(names)
 
-    print("[Berg] Token scan found " .. tostring(#names) .. " names")
+    print("[Ichigisss] Token scan found " .. tostring(#names) .. " names")
     for _, name in ipairs(names) do
         print(" - " .. name)
     end
@@ -1450,6 +2114,42 @@ local function hasConfigFileApi()
         and type(isfile) == "function"
         and type(readfile) == "function"
         and type(writefile) == "function"
+end
+
+local function cloneConfigValue(value)
+    if type(value) ~= "table" then
+        return value
+    end
+
+    local out = {}
+    for k, v in pairs(value) do
+        out[k] = cloneConfigValue(v)
+    end
+    return out
+end
+
+local function configValuesEqual(a, b)
+    if type(a) ~= type(b) then
+        return false
+    end
+
+    if type(a) ~= "table" then
+        return a == b
+    end
+
+    for k, v in pairs(a) do
+        if not configValuesEqual(v, b[k]) then
+            return false
+        end
+    end
+
+    for k in pairs(b) do
+        if a[k] == nil then
+            return false
+        end
+    end
+
+    return true
 end
 
 local function normalizeProfileName(profileName)
@@ -1571,19 +2271,22 @@ local function arrayToColor(value)
     )
 end
 
-local function captureConfigData()
+local function captureConfigData(includeMeta)
     local payload = {
         version = 2,
         userId = LocalPlayer.UserId,
         placeId = game.PlaceId,
         profile = normalizeProfileName(Settings.ConfigProfile),
-        script = "Berg",
-        savedAtUnix = os.time(),
-        savedAtISO = os.date("!%Y-%m-%dT%H:%M:%SZ"),
+        script = "Ichigisss",
         settings = {},
         toys = {},
         theme = {},
     }
+
+    if includeMeta ~= false then
+        payload.savedAtUnix = os.time()
+        payload.savedAtISO = os.date("!%Y-%m-%dT%H:%M:%SZ")
+    end
 
     for key in pairs(DEFAULT) do
         payload.settings[key] = Settings[key]
@@ -1604,7 +2307,29 @@ end
 local function normalizeConfigValues()
     Settings.TweenSoftness = math.clamp(tonumber(Settings.TweenSoftness) or 70, 0, 100)
     Settings.ConfigAutoSaveDelay = math.clamp(tonumber(Settings.ConfigAutoSaveDelay) or 20, 5, 120)
+    Settings.SprinklerInterval = math.clamp(tonumber(Settings.SprinklerInterval) or 12, 3, 60)
+    Settings.WaitBeforeConverting = math.clamp(tonumber(Settings.WaitBeforeConverting) or 0, 0, 25)
+    Settings.CombatRadius = math.clamp(tonumber(Settings.CombatRadius) or 220, 40, 600)
+    Settings.ViciousMinLevel = math.clamp(tonumber(Settings.ViciousMinLevel) or 1, 1, 20)
+    Settings.ViciousMaxLevel = math.clamp(tonumber(Settings.ViciousMaxLevel) or 20, 1, 20)
+    Settings.WindyMinLevel = math.clamp(tonumber(Settings.WindyMinLevel) or 1, 1, 20)
+    Settings.WindyMaxLevel = math.clamp(tonumber(Settings.WindyMaxLevel) or 20, 1, 20)
     Settings.ConfigProfile = normalizeProfileName(Settings.ConfigProfile)
+    if not table.find(FACE_METHODS, Settings.FaceMethod) then
+        Settings.FaceMethod = FACE_METHODS[1]
+    end
+    if not table.find(SHIFT_DIRECTIONS, Settings.ShiftLockDirection) then
+        Settings.ShiftLockDirection = SHIFT_DIRECTIONS[1]
+    end
+    if not table.find(FIELD_POSITIONS, Settings.FieldPosition) then
+        Settings.FieldPosition = FIELD_POSITIONS[1]
+    end
+    if not table.find(INSTANT_CONVERT_TYPES, Settings.InstantConvertType) then
+        Settings.InstantConvertType = INSTANT_CONVERT_TYPES[1]
+    end
+    if not table.find(MASK_NAMES, Settings.DefaultMask) then
+        Settings.DefaultMask = MASK_NAMES[2]
+    end
     if not table.find(TOY_NAMES, Settings.SelectedToy) then
         Settings.SelectedToy = TOY_NAMES[1]
     end
@@ -1654,7 +2379,14 @@ local function saveConfigToFile(profileName, forceWrite)
     local path, normalizedProfile = getConfigFilePath(profileName or Settings.ConfigProfile)
     Settings.ConfigProfile = normalizedProfile
 
-    local payload = captureConfigData()
+    local comparePayload = captureConfigData(false)
+    comparePayload.profile = normalizedProfile
+
+    if Settings.ConfigOnlyIfChanged and not forceWrite and configValuesEqual(configWriteCache[path], comparePayload) then
+        return true, "No changes"
+    end
+
+    local payload = captureConfigData(true)
     payload.profile = normalizedProfile
 
     local okEncode, encoded = pcall(function()
@@ -1662,10 +2394,6 @@ local function saveConfigToFile(profileName, forceWrite)
     end)
     if not okEncode then
         return false, "JSON encode failed"
-    end
-
-    if Settings.ConfigOnlyIfChanged and not forceWrite and configWriteCache[path] == encoded then
-        return true, "No changes"
     end
 
     if Settings.ConfigSaveBackup and isfile(path) then
@@ -1682,7 +2410,7 @@ local function saveConfigToFile(profileName, forceWrite)
         return false, "Write failed"
     end
 
-    configWriteCache[path] = encoded
+    configWriteCache[path] = cloneConfigValue(comparePayload)
     pcall(function()
         saveConfigMetaProfile(normalizedProfile)
     end)
@@ -1742,7 +2470,9 @@ local function loadConfigFromFile(profileName)
     end
 
     Settings.ConfigProfile = normalizedProfile
-    configWriteCache[path] = raw
+    local comparePayload = captureConfigData(false)
+    comparePayload.profile = normalizedProfile
+    configWriteCache[path] = cloneConfigValue(comparePayload)
     pcall(function()
         saveConfigMetaProfile(normalizedProfile)
     end)
@@ -1787,7 +2517,9 @@ local function loadBackupConfigFromFile(profileName)
     end
 
     Settings.ConfigProfile = normalizedProfile
-    configWriteCache[path] = raw
+    local comparePayload = captureConfigData(false)
+    comparePayload.profile = normalizedProfile
+    configWriteCache[path] = cloneConfigValue(comparePayload)
     pcall(function()
         saveConfigMetaProfile(normalizedProfile)
     end)
@@ -1841,6 +2573,10 @@ local function importConfigFromClipboard()
         return false, msg
     end
 
+    if payload.profile ~= nil then
+        Settings.ConfigProfile = normalizeProfileName(payload.profile)
+    end
+
     normalizeConfigValues()
     return true, "Imported from clipboard"
 end
@@ -1871,14 +2607,21 @@ LocalPlayer.CharacterAdded:Connect(function()
     applyWalkSpeed()
 end)
 
-local Window = Library.CreateLib("Berg | BSS Auto Farm", UITheme)
+local Window = Library.CreateLib("Ichigisss | BSS Atlas Style", UITheme)
 
 local MainTab = Window:NewTab("Main")
-local MainControl = MainTab:NewSection("Quick Control")
+local MainControl = MainTab:NewSection("Home")
 local MainTravel = MainTab:NewSection("Navigation")
 local MainUI = MainTab:NewSection("UI")
 
-MainControl:NewLabel("Style: Purple + Black")
+MainControl:NewLabel("Atlas-style control: ON stop, OFF run")
+
+MainControl:NewToggle("Stop Atlas", "ON = fully stop all loops", function(state)
+    Settings.ScriptStopped = state
+    if state then
+        stopMovement()
+    end
+end)
 
 MainControl:NewToggle("Auto Farm", "Start/stop autofarm", function(state)
     Settings.AutoFarm = state
@@ -1892,6 +2635,14 @@ end)
 MainControl:NewButton("Stop Now", "Stop autofarm and movement", function()
     Settings.AutoFarm = false
     stopMovement()
+end)
+
+MainControl:NewToggle("Auto Sprinkler", "Auto place sprinklers while farming", function(state)
+    Settings.AutoSprinkler = state
+end)
+
+MainControl:NewToggle("Auto Dig", "Auto activate equipped tool", function(state)
+    Settings.AutoDig = state
 end)
 
 MainTravel:NewButton("Go To Hive", "Move to hive once", function()
@@ -1935,6 +2686,21 @@ FarmSection:NewDropdown("Field", "Select farming field", FIELDS, function(value)
     Settings.FieldName = value
 end)
 
+FarmSection:NewToggle("Autofarm", "Atlas farming toggle", function(state)
+    Settings.AutoFarm = state
+    if state then
+        task.spawn(runAutoFarm)
+    end
+end)
+
+FarmSection:NewToggle("Auto Sprinkler", "Auto place sprinklers", function(state)
+    Settings.AutoSprinkler = state
+end)
+
+FarmSection:NewToggle("Auto Dig", "Auto tool activate", function(state)
+    Settings.AutoDig = state
+end)
+
 FarmSection:NewToggle("Return To Hive", "Return to hive when bag is full", function(state)
     Settings.ReturnToHive = state
 end)
@@ -1945,6 +2711,138 @@ end)
 
 FarmSection:NewSlider("Hive Wait Seconds", "Time waiting at hive", 90, 5, function(value)
     Settings.HiveWaitSeconds = value
+end)
+
+FarmSection:NewSlider("Sprinkler Interval", "Seconds between auto sprinkler", 60, 3, function(value)
+    Settings.SprinklerInterval = value
+end)
+
+local FarmAdvanced = FarmTab:NewSection("Farm Settings")
+local ConvertSection = FarmTab:NewSection("Convert Settings")
+local FaceSection = FarmTab:NewSection("Face Settings")
+
+FarmAdvanced:NewToggle("Auto Pop Star", "Atlas-inspired Pop Star behavior", function(state)
+    Settings.AutoPopStar = state
+    Settings.TokenPopStar = state
+end)
+
+FarmAdvanced:NewToggle("Auto Scorching Star", "Atlas-inspired Scorching support", function(state)
+    Settings.AutoScorchingStar = state
+end)
+
+FarmAdvanced:NewToggle("Auto Gummy Star", "Atlas-inspired Gummy support", function(state)
+    Settings.AutoGummyStar = state
+end)
+
+FarmAdvanced:NewToggle("Farm Bubbles", "Prioritize bubble-style tokens", function(state)
+    Settings.FarmBubbles = state
+    Settings.TokenBubble = state
+end)
+
+FarmAdvanced:NewToggle("Farm Marks", "Prioritize marks and target tokens", function(state)
+    Settings.TokenMarks = state
+end)
+
+FarmAdvanced:NewToggle("Farm Precise", "Prioritize precise tokens", function(state)
+    Settings.TokenPrecise = state
+end)
+
+FarmAdvanced:NewToggle("Farm Under Balloons", "Prioritize balloon nearby tokens", function(state)
+    Settings.FarmUnderBalloons = state
+end)
+
+FarmAdvanced:NewToggle("Ignore Honey Tokens", "Skip honey tokens in collection", function(state)
+    Settings.IgnoreHoneyTokens = state
+    if state then
+        Settings.TokenHoney = false
+    end
+end)
+
+ConvertSection:NewSlider("Convert Honey %", "Backpack percent to convert", 100, 70, function(value)
+    Settings.HiveBagPercent = value
+end)
+
+ConvertSection:NewSlider("Wait Before Convert", "Seconds to wait before conversion", 20, 0, function(value)
+    Settings.WaitBeforeConverting = value
+end)
+
+ConvertSection:NewToggle("Instant Convert", "Use aggressive convert triggers", function(state)
+    Settings.InstantConvert = state
+    if state then
+        Settings.NoSafeMode = true
+    end
+end)
+
+ConvertSection:NewDropdown("Instant Convert Type", "How to trigger convert", INSTANT_CONVERT_TYPES, function(value)
+    Settings.InstantConvertType = value
+end)
+
+ConvertSection:NewToggle("Convert Only In Field", "Convert only when filled in field", function(state)
+    Settings.ConvertOnlyWhenInField = state
+end)
+
+ConvertSection:NewToggle("Reset When Converting", "Reset position at convert start", function(state)
+    Settings.ResetWhenConverting = state
+end)
+
+ConvertSection:NewSlider("Convert Balloon At (min)", "Balloon blessing minute threshold", 60, 1, function(value)
+    Settings.ConvertBalloonAtMinutes = value
+end)
+
+ConvertSection:NewToggle("Use Coconut To Convert", "Use coconut convert logic", function(state)
+    Settings.UseCoconutToConvert = state
+end)
+
+ConvertSection:NewSlider("Use Coconut At %", "Bag percent to use coconut convert", 100, 70, function(value)
+    Settings.UseCoconutAtPercentage = value
+end)
+
+ConvertSection:NewToggle("Auto Honey Mask For Balloon", "Swap to Honey Mask while converting", function(state)
+    Settings.AutoHoneyMaskForBalloon = state
+end)
+
+ConvertSection:NewDropdown("Default Mask", "Mask to return after conversion", MASK_NAMES, function(value)
+    Settings.DefaultMask = value
+end)
+
+ConvertSection:NewToggle("Collect Festive Blessing", "Collect Festive Blessing if nearby", function(state)
+    Settings.CollectFestiveBlessing = state
+end)
+
+ConvertSection:NewToggle("Convert Balloon When Bag Full", "Convert balloon at full bag", function(state)
+    Settings.ConvertBalloonWhenBagFull = state
+end)
+
+ConvertSection:NewToggle("Convert BagFull + Bubble", "Convert with Bubble Bloat condition", function(state)
+    Settings.ConvertBalloonWhenBagFullBubble = state
+end)
+
+ConvertSection:NewToggle("Use Enzymes For Balloon", "Use enzymes before balloon convert", function(state)
+    Settings.UseEnzymesForConvertingBalloon = state
+end)
+
+FaceSection:NewDropdown("Face Method", "BodyGyro / Shift Lock", FACE_METHODS, function(value)
+    Settings.FaceMethod = value
+end)
+
+FaceSection:NewDropdown("Shift Direction", "Direction for Shift Lock mode", SHIFT_DIRECTIONS, function(value)
+    Settings.ShiftLockDirection = value
+end)
+
+FaceSection:NewDropdown("Field Position", "Farm position in selected field", FIELD_POSITIONS, function(value)
+    Settings.FieldPosition = value
+end)
+
+FaceSection:NewToggle("Face Center", "Face field center while farming", function(state)
+    Settings.FaceCenter = state
+end)
+
+FaceSection:NewToggle("Face Bubbles", "Face bubbles/tokens while farming", function(state)
+    Settings.FaceBubbles = state
+end)
+
+FaceSection:NewToggle("Farm With Shift Lock", "Atlas-like shift lock flow", function(state)
+    Settings.FarmWithShiftLock = state
 end)
 
 local TokenTab = Window:NewTab("Tokens")
@@ -2074,6 +2972,234 @@ for _, toy in ipairs(TOYS) do
     end)
 end
 
+local CombatTab = Window:NewTab("Combat")
+local CombatMain = CombatTab:NewSection("Combat Core")
+local CombatMobs = CombatTab:NewSection("Monsters")
+local CombatBosses = CombatTab:NewSection("Bosses")
+
+local combatStatusLabel = CombatMain:NewLabel("Combat: idle")
+local function setCombatStatus(text)
+    if combatStatusLabel and combatStatusLabel.UpdateLabel then
+        combatStatusLabel:UpdateLabel(text)
+    end
+end
+
+CombatMain:NewToggle("Enable Combat", "Atlas-style auto combat loop", function(state)
+    Settings.EnableCombat = state
+    if state then
+        task.spawn(function()
+            runCombatLoop(setCombatStatus)
+        end)
+    else
+        setCombatStatus("Combat: stopped")
+    end
+end)
+
+CombatMain:NewSlider("Combat Radius", "Target search distance", 600, 40, function(value)
+    Settings.CombatRadius = value
+end)
+
+CombatMain:NewToggle("Auto Demon Mask", "Try equip demon mask in combat", function(state)
+    Settings.AutoDemonMask = state
+end)
+
+CombatMain:NewToggle("Auto Stingers", "Try use stingers in combat", function(state)
+    Settings.AutoStingers = state
+end)
+
+CombatMain:NewToggle("Auto Star Saw", "Try use star saw in combat", function(state)
+    Settings.AutoStarSaw = state
+end)
+
+CombatMain:NewToggle("Auto Avoid Mobs", "Avoid random mobs when traveling", function(state)
+    Settings.AutoAvoidMobs = state
+end)
+
+CombatMobs:NewToggle("Auto Kill Aphid", "Fight aphids", function(state)
+    Settings.AutoKillAphid = state
+end)
+
+CombatMobs:NewToggle("Auto Kill Ladybug", "Fight ladybugs", function(state)
+    Settings.AutoKillLadybug = state
+end)
+
+CombatMobs:NewToggle("Auto Kill Rhino Beetle", "Fight rhino beetles", function(state)
+    Settings.AutoKillRhinoBeetle = state
+end)
+
+CombatMobs:NewToggle("Auto Kill Spider", "Fight spider", function(state)
+    Settings.AutoKillSpider = state
+end)
+
+CombatMobs:NewToggle("Auto Kill Mantis", "Fight mantis", function(state)
+    Settings.AutoKillMantis = state
+end)
+
+CombatMobs:NewToggle("Auto Kill Scorpion", "Fight scorpion", function(state)
+    Settings.AutoKillScorpion = state
+end)
+
+CombatMobs:NewToggle("Auto Kill Werewolf", "Fight werewolf", function(state)
+    Settings.AutoKillWerewolf = state
+end)
+
+CombatMobs:NewToggle("Auto Kill Vicious Bee", "Fight Vicious Bee", function(state)
+    Settings.AutoKillViciousBee = state
+end)
+
+CombatMobs:NewSlider("Vicious Min Level", "Minimum Vicious level", 20, 1, function(value)
+    Settings.ViciousMinLevel = value
+end)
+
+CombatMobs:NewSlider("Vicious Max Level", "Maximum Vicious level", 20, 1, function(value)
+    Settings.ViciousMaxLevel = value
+end)
+
+CombatBosses:NewToggle("Auto Kill Tunnel Bear", "Fight Tunnel Bear", function(state)
+    Settings.AutoKillTunnelBear = state
+end)
+
+CombatBosses:NewToggle("Auto Kill King Beetle", "Fight King Beetle", function(state)
+    Settings.AutoKillKingBeetle = state
+end)
+
+CombatBosses:NewToggle("Auto Kill Coconut Crab", "Fight Coconut Crab", function(state)
+    Settings.AutoKillCoconutCrab = state
+end)
+
+CombatBosses:NewToggle("Auto Kill Mondo Chick", "Fight Mondo Chick", function(state)
+    Settings.AutoKillMondoChick = state
+end)
+
+CombatBosses:NewToggle("Auto Kill Commando Chick", "Fight Commando Chick", function(state)
+    Settings.AutoKillCommando = state
+end)
+
+CombatBosses:NewToggle("Auto Kill Windy Bee", "Fight Windy Bee", function(state)
+    Settings.AutoKillWindyBee = state
+end)
+
+CombatBosses:NewSlider("Windy Min Level", "Minimum Windy level", 20, 1, function(value)
+    Settings.WindyMinLevel = value
+end)
+
+CombatBosses:NewSlider("Windy Max Level", "Maximum Windy level", 20, 1, function(value)
+    Settings.WindyMaxLevel = value
+end)
+
+local QuestsTab = Window:NewTab("Quests")
+local QuestMain = QuestsTab:NewSection("Quest Core")
+local QuestMainToggles = QuestsTab:NewSection("Main Quest Toggles")
+local QuestRepeatToggles = QuestsTab:NewSection("Repeatable Toggles")
+local QuestTaskToggles = QuestsTab:NewSection("Quest Task Settings")
+local FeedSection = QuestsTab:NewSection("Feed Settings")
+
+local questStatusLabel = QuestMain:NewLabel("Quests: idle")
+local function setQuestStatus(text)
+    if questStatusLabel and questStatusLabel.UpdateLabel then
+        questStatusLabel:UpdateLabel(text)
+    end
+end
+
+QuestMain:NewToggle("Auto Quest", "Run atlas-inspired quest loop", function(state)
+    Settings.AutoQuest = state
+    if state then
+        task.spawn(function()
+            runQuestLoop(setQuestStatus)
+        end)
+    else
+        setQuestStatus("Quests: stopped")
+    end
+end)
+
+QuestMain:NewToggle("Auto Claim Quests", "Try claim quest rewards", function(state)
+    Settings.AutoClaimQuests = state
+end)
+
+QuestMainToggles:NewToggle("Auto Black Bear", "Main Black Bear quests", function(state)
+    Settings.AutoQuestBlackBear = state
+end)
+
+QuestMainToggles:NewToggle("Auto Mother Bear", "Main Mother Bear quests", function(state)
+    Settings.AutoQuestMotherBear = state
+end)
+
+QuestMainToggles:NewToggle("Auto Panda Bear", "Main Panda Bear quests", function(state)
+    Settings.AutoQuestPandaBear = state
+end)
+
+QuestMainToggles:NewToggle("Auto Science Bear", "Main Science Bear quests", function(state)
+    Settings.AutoQuestScienceBear = state
+end)
+
+QuestMainToggles:NewToggle("Auto Dapper Bear", "Main Dapper Bear quests", function(state)
+    Settings.AutoQuestDapperBear = state
+end)
+
+QuestMainToggles:NewToggle("Auto Spirit Bear", "Main Spirit Bear quests", function(state)
+    Settings.AutoQuestSpiritBear = state
+end)
+
+QuestRepeatToggles:NewToggle("Auto Brown Bear", "Repeatable Brown Bear", function(state)
+    Settings.AutoQuestBrownBearRepeat = state
+end)
+
+QuestRepeatToggles:NewToggle("Auto Bucko Bee", "Repeatable Bucko Bee", function(state)
+    Settings.AutoQuestBuckoRepeat = state
+end)
+
+QuestRepeatToggles:NewToggle("Auto Riley Bee", "Repeatable Riley Bee", function(state)
+    Settings.AutoQuestRileyRepeat = state
+end)
+
+QuestRepeatToggles:NewToggle("Auto Honey Bee", "Repeatable Honey Bee", function(state)
+    Settings.AutoQuestHoneyBeeRepeat = state
+end)
+
+QuestRepeatToggles:NewToggle("Auto Polar Bear", "Repeatable Polar Bear", function(state)
+    Settings.AutoQuestPolarBearRepeat = state
+end)
+
+QuestTaskToggles:NewToggle("Farm Pollen", "Quest pollen tasks", function(state)
+    Settings.QuestFarmPollen = state
+end)
+
+QuestTaskToggles:NewToggle("Farm Goo", "Quest goo tasks", function(state)
+    Settings.QuestFarmGoo = state
+end)
+
+QuestTaskToggles:NewToggle("Farm Mobs", "Quest mob tasks", function(state)
+    Settings.QuestFarmMobs = state
+end)
+
+QuestTaskToggles:NewToggle("Farm Puffshrooms", "Quest puffshroom tasks", function(state)
+    Settings.QuestFarmPuffshrooms = state
+end)
+
+QuestTaskToggles:NewToggle("Do Duped Tokens", "Quest duplicated token tasks", function(state)
+    Settings.QuestDoDupedTokens = state
+end)
+
+QuestTaskToggles:NewToggle("Use Toys", "Allow toy usage in quests", function(state)
+    Settings.QuestUseToys = state
+end)
+
+FeedSection:NewToggle("Feed Bees", "Atlas feed bees task", function(state)
+    Settings.FeedBees = state
+end)
+
+FeedSection:NewToggle("Level Up Bees", "Atlas level up bees task", function(state)
+    Settings.LevelUpBees = state
+end)
+
+FeedSection:NewToggle("Purchase Treats To Level", "Auto buy treats for leveling", function(state)
+    Settings.PurchaseTreatsToLevelUp = state
+end)
+
+FeedSection:NewToggle("Use Royal Jelly", "Auto use royal jelly", function(state)
+    Settings.UseRoyalJelly = state
+end)
+
 local ConfigTab = Window:NewTab("Config")
 local SpeedSection = ConfigTab:NewSection("Speed")
 local StorageSection = ConfigTab:NewSection("JSON Profile")
@@ -2118,6 +3244,9 @@ end
 
 StorageSection:NewTextBox("Profile Name", "Use letters/numbers/_/-", function(value)
     Settings.ConfigProfile = normalizeProfileName(value)
+    pcall(function()
+        saveConfigMetaProfile(Settings.ConfigProfile)
+    end)
     refreshConfigProfileLabels()
     setConfigStatus("profile set")
 end)
@@ -2331,12 +3460,22 @@ DebugTools:NewButton("Scan Token Names", "List token names to console", function
 end)
 
 task.spawn(function()
+    runSupportLoop()
+end)
+
+task.spawn(function()
     applyWalkSpeed()
     if Settings.AutoFarm then
         runAutoFarm()
     end
     if Settings.AutoUseToys then
         runToyLoop(setToyStatus)
+    end
+    if Settings.EnableCombat then
+        runCombatLoop(setCombatStatus)
+    end
+    if Settings.AutoQuest then
+        runQuestLoop(setQuestStatus)
     end
     if Settings.AntiLagEnabled then
         runAntiLagLoop(setDebugStatus)
