@@ -174,14 +174,16 @@ function Jacker:CreateWindow(options)
 	gui.Parent = options.Parent or getGuiParent()
 	window.Gui = gui
 
-	local requestedSize = options.Size or UDim2.fromOffset(860, 540)
+	local requestedSize = options.Size or UDim2.fromOffset(620, 390)
 	local camera = workspace.CurrentCamera
 	local viewport = camera and camera.ViewportSize or Vector2.new(1920, 1080)
 
-	local maxW = math.max(math.floor(viewport.X * 0.9), 640)
-	local maxH = math.max(math.floor(viewport.Y * 0.9), 420)
-	local minW = math.min(700, maxW)
-	local minH = math.min(420, maxH)
+	local maxW = tonumber(options.MaxWidth) or math.max(math.floor(viewport.X * 0.9), 520)
+	local maxH = tonumber(options.MaxHeight) or math.max(math.floor(viewport.Y * 0.9), 320)
+	local minW = tonumber(options.MinWidth) or math.min(430, maxW)
+	local minH = tonumber(options.MinHeight) or math.min(300, maxH)
+	minW = math.clamp(minW, 320, maxW)
+	minH = math.clamp(minH, 240, maxH)
 
 	local reqW = requestedSize.X.Offset > 0 and requestedSize.X.Offset or math.floor(viewport.X * requestedSize.X.Scale)
 	local reqH = requestedSize.Y.Offset > 0 and requestedSize.Y.Offset or math.floor(viewport.Y * requestedSize.Y.Scale)
@@ -237,8 +239,15 @@ function Jacker:CreateWindow(options)
 		BackgroundColor3 = window.Theme.Topbar,
 		BorderSizePixel = 0,
 	})
-	addStroke(topbar, window.Theme.Border)
 	window.Topbar = topbar
+	local topbarLine = create("Frame", {
+		Parent = topbar,
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.new(0, 0, 1, 0),
+		Size = UDim2.new(1, 0, 0, 1),
+		BackgroundColor3 = window.Theme.Border,
+		BorderSizePixel = 0,
+	})
 
 	local title = create("TextLabel", {
 		Name = "Title",
@@ -305,7 +314,10 @@ function Jacker:CreateWindow(options)
 	})
 	window.Body = body
 
-	local sidebarWidth = options.SidebarWidth or 185
+	local sidebarWidth = options.SidebarWidth
+	if not sidebarWidth then
+		sidebarWidth = math.clamp(math.floor(size.X.Offset * 0.24), 130, 185)
+	end
 	local sidebar = create("Frame", {
 		Name = "Sidebar",
 		Parent = body,
@@ -435,6 +447,7 @@ function Jacker:CreateWindow(options)
 		searchBox.TextColor3 = window.Theme.Text
 		searchBox.PlaceholderColor3 = window.Theme.SubText
 		tabList.ScrollBarImageColor3 = window.Theme.Accent
+		topbarLine.BackgroundColor3 = window.Theme.Border
 
 		for _, cb in ipairs(window._hooks) do
 			cb(window.Theme)
@@ -475,7 +488,7 @@ function Window:SetMinimized(state)
 	else
 		self.Body.Visible = true
 		tween(self.Root, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-			Size = self._expandedSize or self._defaultSize or UDim2.fromOffset(860, 540),
+			Size = self._expandedSize or self._defaultSize or UDim2.fromOffset(620, 390),
 		})
 	end
 end
@@ -678,9 +691,11 @@ function Tab:CreateSection(options)
 		Size = UDim2.new(1, 0, 0, 34),
 		BackgroundColor3 = self.Window.Theme.CardAlt,
 		BorderSizePixel = 0,
+		ClipsDescendants = true,
 		Text = "",
 		AutoButtonColor = false,
 	})
+	addCorner(header, 10)
 	section.Header = header
 
 	local title = create("TextLabel", {
@@ -745,6 +760,7 @@ local function makeCard(window, parent, h)
 		Size = UDim2.new(1, 0, 0, h or 34),
 		BackgroundColor3 = window.Theme.CardAlt,
 		BorderSizePixel = 0,
+		ClipsDescendants = true,
 	})
 	addCorner(row, 8)
 	local stroke = addStroke(row, window.Theme.Border)
