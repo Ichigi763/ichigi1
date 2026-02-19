@@ -118,6 +118,35 @@ local function makeDraggable(handle, target, bucket)
 	end))
 end
 
+local function isMouseInside(guiObject)
+	local mousePos = UserInputService:GetMouseLocation()
+	local absPos = guiObject.AbsolutePosition
+	local absSize = guiObject.AbsoluteSize
+	return mousePos.X >= absPos.X
+		and mousePos.X <= (absPos.X + absSize.X)
+		and mousePos.Y >= absPos.Y
+		and mousePos.Y <= (absPos.Y + absSize.Y)
+end
+
+local function bindMouseWheel(scroller, bucket, stepPx)
+	local step = stepPx or 34
+	table.insert(bucket, UserInputService.InputChanged:Connect(function(input)
+		if input.UserInputType ~= Enum.UserInputType.MouseWheel then
+			return
+		end
+		if not scroller.Visible or not scroller.Parent then
+			return
+		end
+		if not isMouseInside(scroller) then
+			return
+		end
+
+		local maxY = math.max(0, scroller.AbsoluteCanvasSize.Y - scroller.AbsoluteWindowSize.Y)
+		local nextY = scroller.CanvasPosition.Y - (input.Position.Z * step)
+		scroller.CanvasPosition = Vector2.new(scroller.CanvasPosition.X, math.clamp(nextY, 0, maxY))
+	end))
+end
+
 local function getGuiParent()
 	local env = getfenv and getfenv() or _G
 	if env and type(env.gethui) == "function" then
@@ -162,7 +191,7 @@ function Jacker:CreateWindow(options)
 	window._toggleKey = options.ToggleKey or Enum.KeyCode.RightShift
 	window._visible = true
 	window._minimized = false
-	window._twoColumnMinWidth = options.TwoColumnMinWidth or 620
+	window._twoColumnMinWidth = options.TwoColumnMinWidth or 0
 
 	local gui = create("ScreenGui", {
 		Name = options.Name or ("JackerUI_" .. tostring(math.random(1000, 99999))),
@@ -174,16 +203,16 @@ function Jacker:CreateWindow(options)
 	gui.Parent = options.Parent or getGuiParent()
 	window.Gui = gui
 
-	local requestedSize = options.Size or UDim2.fromOffset(620, 390)
+	local requestedSize = options.Size or UDim2.fromOffset(480, 300)
 	local camera = workspace.CurrentCamera
 	local viewport = camera and camera.ViewportSize or Vector2.new(1920, 1080)
 
-	local maxW = tonumber(options.MaxWidth) or math.max(math.floor(viewport.X * 0.9), 520)
-	local maxH = tonumber(options.MaxHeight) or math.max(math.floor(viewport.Y * 0.9), 320)
-	local minW = tonumber(options.MinWidth) or math.min(430, maxW)
-	local minH = tonumber(options.MinHeight) or math.min(300, maxH)
-	minW = math.clamp(minW, 320, maxW)
-	minH = math.clamp(minH, 240, maxH)
+	local maxW = tonumber(options.MaxWidth) or math.max(math.floor(viewport.X * 0.9), 460)
+	local maxH = tonumber(options.MaxHeight) or math.max(math.floor(viewport.Y * 0.9), 280)
+	local minW = tonumber(options.MinWidth) or math.min(340, maxW)
+	local minH = tonumber(options.MinHeight) or math.min(220, maxH)
+	minW = math.clamp(minW, 300, maxW)
+	minH = math.clamp(minH, 200, maxH)
 
 	local reqW = requestedSize.X.Offset > 0 and requestedSize.X.Offset or math.floor(viewport.X * requestedSize.X.Scale)
 	local reqH = requestedSize.Y.Offset > 0 and requestedSize.Y.Offset or math.floor(viewport.Y * requestedSize.Y.Scale)
@@ -372,12 +401,14 @@ function Jacker:CreateWindow(options)
 		BorderSizePixel = 0,
 		CanvasSize = UDim2.new(),
 		AutomaticCanvasSize = Enum.AutomaticSize.Y,
+		Active = true,
 		ScrollingDirection = Enum.ScrollingDirection.Y,
 		ScrollingEnabled = true,
 		ScrollBarThickness = 4,
 		ScrollBarImageColor3 = window.Theme.Accent,
 	})
 	window.TabList = tabList
+	bindMouseWheel(tabList, window._connections, 32)
 	create("UIListLayout", {
 		Parent = tabList,
 		SortOrder = Enum.SortOrder.LayoutOrder,
@@ -488,7 +519,7 @@ function Window:SetMinimized(state)
 	else
 		self.Body.Visible = true
 		tween(self.Root, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-			Size = self._expandedSize or self._defaultSize or UDim2.fromOffset(620, 390),
+			Size = self._expandedSize or self._defaultSize or UDim2.fromOffset(480, 300),
 		})
 	end
 end
@@ -551,12 +582,14 @@ function Window:CreateTab(options)
 		BorderSizePixel = 0,
 		CanvasSize = UDim2.new(),
 		AutomaticCanvasSize = Enum.AutomaticSize.Y,
+		Active = true,
 		ScrollingDirection = Enum.ScrollingDirection.Y,
 		ScrollingEnabled = true,
 		ScrollBarThickness = 4,
 		ScrollBarImageColor3 = self.Theme.Accent,
 	})
 	tab.LeftColumn = leftCol
+	bindMouseWheel(leftCol, self._connections, 36)
 
 	local rightCol = create("ScrollingFrame", {
 		Parent = page,
@@ -566,12 +599,14 @@ function Window:CreateTab(options)
 		BorderSizePixel = 0,
 		CanvasSize = UDim2.new(),
 		AutomaticCanvasSize = Enum.AutomaticSize.Y,
+		Active = true,
 		ScrollingDirection = Enum.ScrollingDirection.Y,
 		ScrollingEnabled = true,
 		ScrollBarThickness = 4,
 		ScrollBarImageColor3 = self.Theme.Accent,
 	})
 	tab.RightColumn = rightCol
+	bindMouseWheel(rightCol, self._connections, 36)
 
 	create("UIPadding", {
 		Parent = leftCol,
