@@ -162,6 +162,7 @@ function Jacker:CreateWindow(options)
 	window._toggleKey = options.ToggleKey or Enum.KeyCode.RightShift
 	window._visible = true
 	window._minimized = false
+	window._twoColumnMinWidth = options.TwoColumnMinWidth or 620
 
 	local gui = create("ScreenGui", {
 		Name = options.Name or ("JackerUI_" .. tostring(math.random(1000, 99999))),
@@ -173,7 +174,26 @@ function Jacker:CreateWindow(options)
 	gui.Parent = options.Parent or getGuiParent()
 	window.Gui = gui
 
-	local size = options.Size or UDim2.fromOffset(1120, 640)
+	local requestedSize = options.Size or UDim2.fromOffset(860, 540)
+	local camera = workspace.CurrentCamera
+	local viewport = camera and camera.ViewportSize or Vector2.new(1920, 1080)
+
+	local maxW = math.max(math.floor(viewport.X * 0.9), 640)
+	local maxH = math.max(math.floor(viewport.Y * 0.9), 420)
+	local minW = math.min(700, maxW)
+	local minH = math.min(420, maxH)
+
+	local reqW = requestedSize.X.Offset > 0 and requestedSize.X.Offset or math.floor(viewport.X * requestedSize.X.Scale)
+	local reqH = requestedSize.Y.Offset > 0 and requestedSize.Y.Offset or math.floor(viewport.Y * requestedSize.Y.Scale)
+	local size = UDim2.fromOffset(math.clamp(reqW, minW, maxW), math.clamp(reqH, minH, maxH))
+	window._defaultSize = size
+	window._expandedSize = size
+	window._sizeBounds = {
+		MinW = minW,
+		MinH = minH,
+		MaxW = maxW,
+		MaxH = maxH,
+	}
 
 	local shadow = create("Frame", {
 		Name = "Shadow",
@@ -285,10 +305,11 @@ function Jacker:CreateWindow(options)
 	})
 	window.Body = body
 
+	local sidebarWidth = options.SidebarWidth or 185
 	local sidebar = create("Frame", {
 		Name = "Sidebar",
 		Parent = body,
-		Size = UDim2.fromOffset(210, 0),
+		Size = UDim2.fromOffset(sidebarWidth, 0),
 		BackgroundColor3 = window.Theme.Sidebar,
 		BorderSizePixel = 0,
 	})
@@ -339,6 +360,8 @@ function Jacker:CreateWindow(options)
 		BorderSizePixel = 0,
 		CanvasSize = UDim2.new(),
 		AutomaticCanvasSize = Enum.AutomaticSize.Y,
+		ScrollingDirection = Enum.ScrollingDirection.Y,
+		ScrollingEnabled = true,
 		ScrollBarThickness = 4,
 		ScrollBarImageColor3 = window.Theme.Accent,
 	})
@@ -352,8 +375,8 @@ function Jacker:CreateWindow(options)
 	local content = create("Frame", {
 		Name = "Content",
 		Parent = body,
-		Position = UDim2.fromOffset(210, 0),
-		Size = UDim2.new(1, -210, 1, 0),
+		Position = UDim2.fromOffset(sidebarWidth, 0),
+		Size = UDim2.new(1, -sidebarWidth, 1, 0),
 		BackgroundTransparency = 1,
 		ClipsDescendants = true,
 	})
@@ -452,7 +475,7 @@ function Window:SetMinimized(state)
 	else
 		self.Body.Visible = true
 		tween(self.Root, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-			Size = self._expandedSize or UDim2.fromOffset(1120, 640),
+			Size = self._expandedSize or self._defaultSize or UDim2.fromOffset(860, 540),
 		})
 	end
 end
@@ -515,6 +538,8 @@ function Window:CreateTab(options)
 		BorderSizePixel = 0,
 		CanvasSize = UDim2.new(),
 		AutomaticCanvasSize = Enum.AutomaticSize.Y,
+		ScrollingDirection = Enum.ScrollingDirection.Y,
+		ScrollingEnabled = true,
 		ScrollBarThickness = 4,
 		ScrollBarImageColor3 = self.Theme.Accent,
 	})
@@ -528,6 +553,8 @@ function Window:CreateTab(options)
 		BorderSizePixel = 0,
 		CanvasSize = UDim2.new(),
 		AutomaticCanvasSize = Enum.AutomaticSize.Y,
+		ScrollingDirection = Enum.ScrollingDirection.Y,
+		ScrollingEnabled = true,
 		ScrollBarThickness = 4,
 		ScrollBarImageColor3 = self.Theme.Accent,
 	})
@@ -560,7 +587,7 @@ function Window:CreateTab(options)
 
 	function tab:_updateColumns()
 		local w = page.AbsoluteSize.X
-		if w >= 960 then
+		if w >= (self.Window._twoColumnMinWidth or 620) then
 			leftCol.Position = UDim2.fromOffset(0, 0)
 			leftCol.Size = UDim2.new(0.5, -6, 1, 0)
 			rightCol.Position = UDim2.new(0.5, 6, 0, 0)
